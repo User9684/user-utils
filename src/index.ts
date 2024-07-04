@@ -15,9 +15,10 @@ export default {
         const url = new URL(request.url);
 
         if (url.pathname !== "/interactions") {
-            return new Response("Fuck off.", {
-                status: 418,
-            });
+            return Response.redirect(
+                "https://github.com/User9684/user-utils",
+                301
+            );
         }
 
         const verified = await VerifyRequest(request, env);
