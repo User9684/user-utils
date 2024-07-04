@@ -19,3 +19,7 @@ crons = []
 [[kv_namespaces]]
 binding = "RDAPCache"
 id = "f4c7b63a2e9f1d5c7a6b8e4d3f2a1c9b"
+
+[[kv_namespaces]]
+binding = "MessageQueries"
+id = "f4c7b63a2e9f1d5c7a6b8e4d3f2a1c9b"
