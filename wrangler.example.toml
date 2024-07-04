@@ -1,0 +1,21 @@
+# All of the tokens in this example are not valid 
+# and must be replaced with your personal ones.
+
+compatibility_date = "2024-02-12"
+main = "src/index.ts"
+name = "user-utils-bot"
+
+[vars]
+PUBLIC_KEY = "9e1c3a4d1f6b7a5c8b9d0e3f4a1c2d3b9e1f7a6c5b8d0e4f7a2c3b9d8f7e6c4d"
+TOKEN = "MjEyNzk1MTQ1NjM5MTY1OTUy.GKgPxr.dGhpcyBpcyBmYWtlEnczxNF_9z0IbHkZLfJ0w"
+BOT_OWNER = "268473310986240001"
+
+[placement]
+mode = "smart"
+
+[triggers]
+crons = []
+
+[[kv_namespaces]]
+binding = "RDAPCache"
+id = "f4c7b63a2e9f1d5c7a6b8e4d3f2a1c9b"
