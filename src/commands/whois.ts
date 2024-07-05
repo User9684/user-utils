@@ -21,6 +21,7 @@ import {
     fetchRDAPData,
     Entity,
 } from "../lib/RDAP";
+import { RandomEmbedColor } from "../lib/discord";
 
 export async function parseCard(vcard: any[]): Promise<EmbedField> {
     const [name, parameters, type, value] = vcard;
@@ -38,7 +39,7 @@ export async function parseCard(vcard: any[]): Promise<EmbedField> {
             cardValue = (
                 (paramStr && paramStr?.length >= 0 && paramStr) ||
                 valueString
-            ).replaceAll("\n", "");
+            ).replaceAll("\n", " ");
             break;
         case "uri":
             cardValue = value;
@@ -84,7 +85,7 @@ export async function pagesFromEntities(
 
 export async function embedAndComponentsFromRDAP(
     RDAPResponse: FetchRDAPResponse,
-    type: "ns" | "entities",
+    type: "ns" | "entities" | "events" | "ipinfo",
     page: number,
     footerStr: string
 ): Promise<{
@@ -110,93 +111,161 @@ export async function embedAndComponentsFromRDAP(
     ];
 
     const embedFields: EmbedField[] = [];
-    if (RDAPResponse.data.rdaptype === RDAPTypes.DOMAIN) {
-        menuOptions.push({
-            label: "Name Servers",
-            value: "ns",
-            description: "Domain nameservers",
-        });
-
-        if (RDAPResponse.data.entities?.length > 0) {
+    switch (RDAPResponse.data.rdaptype) {
+        case RDAPTypes.IP:
             menuOptions.push({
-                label: "Entities",
-                value: "entities",
-                description: "Domain Entities",
+                label: "IP Info",
+                value: "ipinfo",
+                description: "IP Information (CIDR, name, country)",
             });
-        }
 
-        switch (type) {
-            case "ns":
-                const nameservers = (RDAPResponse.data.nameservers || []).map(
-                    (v) => {
-                        return v.ldhName.toLowerCase() + " ";
-                    }
-                );
-                embedFields.push({
-                    name: "Name Servers",
-                    value: `\`\`\`fix\n${nameservers.join("\n")}\`\`\``,
+            if (RDAPResponse.data.entities?.length > 0) {
+                menuOptions.push({
+                    label: "Entities",
+                    value: "entities",
+                    description: "IP Entities",
                 });
-                break;
-            case "entities":
-                embedFields.push({
-                    name: "Entity Number",
-                    value: page.toString(),
-                });
-                const fields = await pagesFromEntities(
-                    RDAPResponse.data.entities
-                );
-
-                page = Math.min(Math.max(page, 1), fields?.length);
-
-                const pageFields = fields[page - 1];
-
-                console.log(pageFields);
-
-                for (const i in pageFields) {
-                    embedFields.push(pageFields[i]);
-                }
-
-                components.push({
-                    type: 1,
-                    components: [
-                        {
-                            type: 2,
-                            style: ButtonCompontentType.Primary,
-                            label: "←",
-                            custom_id: "whois_previous",
-                            disabled: page <= 1,
-                        },
-                        {
-                            type: 2,
-                            style: ButtonCompontentType.Primary,
-                            label: "→",
-                            custom_id: "whois_next",
-                            disabled: page >= fields?.length,
-                        },
-                    ],
-                });
-                break;
-        }
-
-        components.push({
-            type: 1,
-            components: [
+            }
+            break;
+        case RDAPTypes.DOMAIN:
+            menuOptions.push(
                 {
-                    type: ComponentType.StringSelect,
-                    custom_id: "whois_select_menu",
-                    options: menuOptions,
+                    label: "Name Servers",
+                    value: "ns",
+                    description: "Domain nameservers",
                 },
-            ],
-        });
+                {
+                    label: "Domain Events",
+                    value: "events",
+                    description:
+                        "Domain registration events (expiration, registration, etc)",
+                }
+            );
 
-        embeds.push({
-            title: "RDAP Response",
-            fields: embedFields,
-            footer: {
-                text: footerStr,
-            },
-        });
+            if (RDAPResponse.data.entities?.length > 0) {
+                menuOptions.push({
+                    label: "Entities",
+                    value: "entities",
+                    description: "Domain Entities",
+                });
+            }
+            break;
     }
+
+    switch (type) {
+        case "ns":
+            const nameservers = (
+                (RDAPResponse.data.rdaptype === RDAPTypes.DOMAIN &&
+                    RDAPResponse.data.nameservers) ||
+                []
+            ).map((v) => {
+                return v.ldhName.toLowerCase() + " ";
+            });
+            embedFields.push({
+                name: "Name Servers",
+                value: `\`\`\`fix\n${nameservers.join("\n")}\`\`\``,
+            });
+            break;
+        case "entities":
+            embedFields.push({
+                name: "Entity Number",
+                value: page.toString(),
+            });
+            const fields = await pagesFromEntities(RDAPResponse.data.entities);
+
+            page = Math.min(Math.max(page, 1), fields?.length);
+
+            const pageFields = fields[page - 1];
+
+            console.log(pageFields);
+
+            for (const i in pageFields) {
+                embedFields.push(pageFields[i]);
+            }
+
+            components.push({
+                type: 1,
+                components: [
+                    {
+                        type: 2,
+                        style: ButtonCompontentType.Primary,
+                        label: "←",
+                        custom_id: "whois_previous",
+                        disabled: page <= 1,
+                    },
+                    {
+                        type: 2,
+                        style: ButtonCompontentType.Primary,
+                        label: "→",
+                        custom_id: "whois_next",
+                        disabled: page >= fields?.length,
+                    },
+                ],
+            });
+            break;
+        case "events":
+            for (const i in RDAPResponse.data.events) {
+                const event = RDAPResponse.data.events[i];
+
+                embedFields.push({
+                    name: event.eventAction,
+                    value: `<t:${Date.parse(event.eventDate) / 1000}>`,
+                });
+            }
+            break;
+        case "ipinfo":
+            if (RDAPResponse.data.rdaptype !== RDAPTypes.IP) {
+                break;
+            }
+
+            const cidrs = [];
+
+            for (const i in RDAPResponse.data.cidr0_cidrs) {
+                const cidr = RDAPResponse.data.cidr0_cidrs[i];
+                cidrs.push(`${cidr.v6prefix || cidr.v4prefix}/${cidr.length}`);
+            }
+
+            embedFields.push(
+                {
+                    name: "IP CIDR(s)",
+                    value: `\`${cidrs.join("`, `")}\``,
+                },
+                {
+                    name: "Block Name",
+                    value: RDAPResponse.data.name,
+                    inline: true,
+                },
+                {
+                    name: "Ip Version",
+                    value: RDAPResponse.data.ipVersion,
+                },
+                {
+                    name: "Ip Country",
+                    value: RDAPResponse.data.country,
+                }
+            );
+            break;
+    }
+
+    components.push({
+        type: 1,
+        components: [
+            {
+                type: ComponentType.StringSelect,
+                custom_id: "whois_select_menu",
+                options: menuOptions,
+            },
+        ],
+    });
+
+    embeds.push({
+        title: "RDAP Response",
+        fields: embedFields,
+        footer: {
+            text: footerStr,
+        },
+        color: RandomEmbedColor(),
+    });
 
     return {
         embeds,
@@ -290,7 +359,8 @@ async function Execute(
 
         const { embeds, components } = await embedAndComponentsFromRDAP(
             RDAPResponse,
-            "ns",
+            (RDAPResponse.data.rdaptype === RDAPTypes.DOMAIN && "ns") ||
+                "ipinfo",
             1,
             `Data fetched from ${RDAPResponse.rdapServer}`
         );

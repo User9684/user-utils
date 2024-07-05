@@ -53,7 +53,9 @@ export async function VerifyRequest(
     );
 }
 
-export async function FormFromPayload(payload: InteractionResponse): Promise<FormData> {
+export async function FormFromPayload(
+    payload: InteractionResponse
+): Promise<FormData> {
     const form = new FormData();
 
     const attachments = payload.data?.attachments || [];
@@ -98,4 +100,18 @@ export async function DiscordRequest(
         },
         body: requestBody,
     });
+}
+
+export function RandomEmbedColor(): number {
+    const r = Math.floor(127 + Math.random() * 128);
+    const g = Math.floor(127 + Math.random() * 128);
+    const b = Math.floor(127 + Math.random() * 128);
+
+    return parseInt(
+        ((1 << 24) + (r << 16) + (g << 8) + b)
+            .toString(16)
+            .slice(1)
+            .toUpperCase(),
+        16
+    );
 }

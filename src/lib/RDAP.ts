@@ -64,7 +64,8 @@ export interface ParsedIPRDAP {
     country: string;
     parentHandle: string;
     cidr0_cidrs: {
-        v6prefix: string;
+        v6prefix?: string;
+        v4prefix?: string;
         length: number;
     }[];
     status: string[];
