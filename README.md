@@ -30,7 +30,7 @@ If you feel like making your own instance, here is a small guide on setting it u
 
 -   First, you need to replace the default config values `PUBLIC_KEY`, `TOKEN`, and `BOT_OWNER`. Replace `PUBLIC_KEY` and `TOKEN` with the values you got from [Creating the bot](#creating-the-bot)
 -   Replace `BOT_OWNER` with your personal user ID. If you do not know your user ID, you can get it by reading this [helpful article](https://support.discord.com/hc/en-us/articles/206346498-Where-can-I-find-my-User-Server-Message-ID).
--   Then, you must create three things via CLI. If you installed everything properly, you should have no trouble with this.
+-   Then, you must create two things via CLI. If you installed everything properly, you should have no trouble with this.
 -   Run the command `wrangler login` and follow the steps displayed.
 -   After that, run the command `wrangler kv namespace create RDAPCache` and save the `id` value provided to you.
 -   Replace the `id` under "RDAPCache" in your wrangler.toml with this newly obtained ID.
