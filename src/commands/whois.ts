@@ -113,11 +113,19 @@ export async function embedAndComponentsFromRDAP(
     const embedFields: EmbedField[] = [];
     switch (RDAPResponse.data.rdaptype) {
         case RDAPTypes.IP:
-            menuOptions.push({
-                label: "IP Info",
-                value: "ipinfo",
-                description: "IP Information (CIDR, name, country)",
-            });
+            menuOptions.push(
+                {
+                    label: "IP Info",
+                    value: "ipinfo",
+                    description: "IP Information (CIDR, name, country)",
+                },
+                {
+                    label: "IP Events",
+                    value: "events",
+                    description:
+                        "IP registration events (registration, changes, etc)",
+                }
+            );
 
             if (RDAPResponse.data.entities?.length > 0) {
                 menuOptions.push({
