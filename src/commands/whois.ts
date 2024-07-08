@@ -29,7 +29,7 @@ export async function parseCard(vcard: any[]): Promise<EmbedField> {
     const valueString = Array.isArray(value) ? value.join(" ") : value;
 
     const paramStr = Object.entries(parameters)
-        .map(([_, val]) => `${val}`)
+        .map(([key, val]) => `${(key !== "type" && val) || ""}`)
         .join("; ");
 
     let cardValue: string;
