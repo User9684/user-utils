@@ -185,8 +185,6 @@ export async function embedAndComponentsFromRDAP(
 
             const pageFields = fields[page - 1];
 
-            console.log(pageFields);
-
             for (const i in pageFields) {
                 embedFields.push(pageFields[i]);
             }
@@ -240,16 +238,22 @@ export async function embedAndComponentsFromRDAP(
                 },
                 {
                     name: "Block Name",
-                    value: RDAPResponse.data.name,
+                    value:
+                        RDAPResponse.data.name ||
+                        "Undefined (RDAP response empty)",
                     inline: true,
                 },
                 {
                     name: "Ip Version",
-                    value: RDAPResponse.data.ipVersion,
+                    value:
+                        RDAPResponse.data.ipVersion ||
+                        "Undefined (RDAP response empty)",
                 },
                 {
                     name: "Ip Country",
-                    value: RDAPResponse.data.country,
+                    value:
+                        RDAPResponse.data.country ||
+                        "Undefined (RDAP response empty)",
                 }
             );
             break;

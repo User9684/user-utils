@@ -2,16 +2,100 @@
 
 import {
     CallbackType,
+    Ctx,
     Env,
     Interaction,
+    InteractionCallback,
     InteractionResponse,
     InteractionType,
 } from "./types";
-import { FormFromPayload, VerifyRequest } from "./lib/discord";
+import {
+    DiscordRequest,
+    FormFromPayload,
+    VerifyRequest,
+    application_id,
+} from "./lib/discord";
 import { commands, components } from "./commands";
 
+async function handleInteraction(
+    interaction: Interaction,
+    env: Env,
+    ctx: Ctx
+): Promise<InteractionResponse> {
+    switch (interaction.type) {
+        case InteractionType.MESSAGE_COMPONENT:
+        case InteractionType.APPLICATION_COMMAND ||
+            InteractionType.MESSAGE_COMPONENT:
+            try {
+                const cmd =
+                    (interaction.type === InteractionType.APPLICATION_COMMAND &&
+                        commands[interaction.data.name]) ||
+                    components[interaction.data.custom_id];
+
+                if (!cmd) {
+                    return {
+                        type: CallbackType.CHANNEL_MESSAGE_WITH_SOURCE,
+                        data: {
+                            content: `No ${
+                                (interaction.type ===
+                                    InteractionType.APPLICATION_COMMAND &&
+                                    "command") ||
+                                "component code"
+                            } found for \`${
+                                interaction.data.name ||
+                                interaction.data.custom_id
+                            }\``,
+                            flags: 64,
+                        },
+                    };
+                }
+                const commandResponse = await cmd.Execute(
+                    env,
+                    interaction,
+                    ctx
+                );
+
+                return commandResponse;
+            } catch (err) {
+                const response: InteractionResponse = {
+                    type: CallbackType.CHANNEL_MESSAGE_WITH_SOURCE,
+                    data: {
+                        content: "Command errored!",
+                        flags: 64,
+                    },
+                };
+
+                const userID =
+                    interaction?.member?.user?.id ||
+                    interaction?.user?.id ||
+                    "";
+
+                if (userID === env.BOT_OWNER && response.data) {
+                    response.data.attachments = [
+                        {
+                            blob: new Blob([err], {
+                                type: "text/plain",
+                            }),
+                            fileName: "error.txt",
+                        },
+                    ];
+                }
+
+                return response;
+            }
+        default:
+            return {
+                type: CallbackType.CHANNEL_MESSAGE_WITH_SOURCE,
+                data: {
+                    content: `Interaction type \`${interaction.type}\` is not supported.`,
+                    flags: 64,
+                },
+            };
+    }
+}
+
 export default {
-    async fetch(request: Request, env: Env) {
+    async fetch(request: Request, env: Env, ctx: Ctx) {
         const url = new URL(request.url);
 
         if (url.pathname !== "/interactions") {
@@ -30,78 +114,43 @@ export default {
 
         const requestBody: Interaction = await request.json();
 
-        switch (requestBody.type) {
-            case InteractionType.PING:
-                return Response.json({
-                    type: 1,
-                });
-            case InteractionType.MESSAGE_COMPONENT:
-            case InteractionType.APPLICATION_COMMAND ||
-                InteractionType.MESSAGE_COMPONENT:
-                try {
-                    const cmd =
-                        (requestBody.type ===
-                            InteractionType.APPLICATION_COMMAND &&
-                            commands[requestBody.data.name]) ||
-                        components[requestBody.data.custom_id];
-
-                    if (!cmd) {
-                        return Response.json({
-                            type: CallbackType.CHANNEL_MESSAGE_WITH_SOURCE,
-                            data: {
-                                content: `No ${
-                                    (requestBody.type ===
-                                        InteractionType.APPLICATION_COMMAND &&
-                                        "command") ||
-                                    "component code"
-                                } found for \`${
-                                    requestBody.data.name ||
-                                    requestBody.data.custom_id
-                                }\``,
-                                flags: 64,
-                            },
-                        });
-                    }
-                    const commandResponse = await cmd.Execute(env, requestBody);
-
-                    const response = await FormFromPayload(commandResponse);
-
-                    return new Response(response);
-                } catch (err) {
-                    const response: InteractionResponse = {
-                        type: CallbackType.CHANNEL_MESSAGE_WITH_SOURCE,
-                        data: {
-                            content: "Command errored!",
-                            flags: 64,
-                        },
-                    };
-
-                    const userID =
-                        requestBody?.member?.user?.id ||
-                        requestBody?.user?.id ||
-                        "";
-
-                    if (userID === env.BOT_OWNER && response.data) {
-                        response.data.attachments = [
-                            {
-                                blob: new Blob([err], {
-                                    type: "text/plain",
-                                }),
-                                fileName: "error.txt",
-                            },
-                        ];
-                    }
-
-                    return new Response(await FormFromPayload(response));
-                }
-            default:
-                return Response.json({
-                    type: CallbackType.CHANNEL_MESSAGE_WITH_SOURCE,
-                    data: {
-                        content: `Interaction type \`${requestBody.type}\` is not supported.`,
-                        flags: 64,
-                    },
-                });
+        if (requestBody.type === InteractionType.PING) {
+            return Response.json({
+                type: CallbackType.PONG,
+            });
         }
+
+        ctx.waitUntil(
+            (async () => {
+                const response = await handleInteraction(requestBody, env, ctx);
+
+                if (response.type === CallbackType.IGNORE) {
+                    return;
+                }
+
+                const form = await FormFromPayload(response);
+                const res = await DiscordRequest(
+                    env,
+                    `/webhooks/${application_id(env)}/${
+                        requestBody.token
+                    }/messages/@original`,
+                    "PATCH",
+                    form
+                );
+
+                console.log(await res.text());
+            })()
+        );
+
+        if (requestBody.type === InteractionType.MESSAGE_COMPONENT) {
+            return Response.json({
+                type: CallbackType.UPDATE_MESSAGE,
+                data: {},
+            });
+        }
+
+        return Response.json({
+            type: CallbackType.DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE,
+        });
     },
 };

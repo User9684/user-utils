@@ -74,7 +74,7 @@ export async function FormFromPayload(
         payload.data.attachments = newAttachments;
     }
 
-    form.append("payload_json", JSON.stringify(payload));
+    form.append("payload_json", JSON.stringify(payload.data));
 
     return form;
 }
@@ -91,13 +91,18 @@ export async function DiscordRequest(
     const requestBody =
         (body instanceof FormData && body) || JSON.stringify(body);
 
+    const headers = {
+        Authorization: `Bot ${env.TOKEN}`,
+        "User-Agent": "9684 utilities bot",
+    };
+
+    if (!(body instanceof FormData)) {
+        headers["Content-Type"] = "application/json; charset=UTF-8";
+    }
+
     return fetch(requestURI, {
         method: method,
-        headers: {
-            Authorization: `Bot ${env.TOKEN}`,
-            "Content-Type": "application/json; charset=UTF-8",
-            "User-Agent": "9684 utilities bot",
-        },
+        headers: headers,
         body: requestBody,
     });
 }

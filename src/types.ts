@@ -8,6 +8,8 @@ export type Env = {
     MessageQueries: KVNamespace;
 };
 
+export type Ctx = EventContext<Env, any, any>
+
 export enum InteractionType {
     PING = 1,
     APPLICATION_COMMAND,
@@ -17,7 +19,8 @@ export enum InteractionType {
 }
 
 export enum CallbackType {
-    PONG = 1,
+    IGNORE = 0,
+    PONG,
     CHANNEL_MESSAGE_WITH_SOURCE = 4,
     DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE,
     DEFERRED_UPDATE_MESSAGE,
@@ -297,7 +300,8 @@ export type BotComponent = {
     ComponentObject: ComponentObject;
     Execute: (
         env: Env,
-        interaction: Interaction
+        interaction: Interaction,
+        ctx: Ctx,
     ) => Promise<InteractionResponse>;
 };
 
@@ -305,6 +309,7 @@ export type BotCommand = {
     CommandObject: Command;
     Execute: (
         env: Env,
-        interaction: Interaction
+        interaction: Interaction,
+        ctx: Ctx,
     ) => Promise<InteractionResponse>;
 };
