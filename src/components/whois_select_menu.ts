@@ -21,6 +21,22 @@ const ComponentObject: ComponentObject = {
     custom_id: "whois_select_menu",
 };
 
+export async function expireMessage(env: Env, interaction: Interaction) {
+    const followup = await FormFromPayload({
+        type: CallbackType.CHANNEL_MESSAGE_WITH_SOURCE,
+        data: {
+            content: "This query has expired.",
+            flags: 64,
+        },
+    });
+    await DiscordRequest(
+        env,
+        `/webhooks/${application_id(env)}/${interaction.token}`,
+        "POST",
+        followup
+    );
+}
+
 async function Execute(
     env: Env,
     interaction: Interaction,
@@ -32,13 +48,7 @@ async function Execute(
                 interaction.message.interaction_metadata.id
             );
             if (queryJson === null) {
-                return {
-                    type: CallbackType.CHANNEL_MESSAGE_WITH_SOURCE,
-                    data: {
-                        content: "This query has expired.",
-                        flags: 64,
-                    },
-                };
+                return await expireMessage(env, interaction);
             }
 
             const { token, query } = JSON.parse(queryJson);
@@ -46,13 +56,7 @@ async function Execute(
             const RDAPResponse = await fetchRDAPData(env, query);
 
             if (typeof RDAPResponse.data !== "object") {
-                return {
-                    type: CallbackType.CHANNEL_MESSAGE_WITH_SOURCE,
-                    data: {
-                        content: "This query has expired.",
-                        flags: 64,
-                    },
-                };
+                return await expireMessage(env, interaction);
             }
 
             const selectedValue = (interaction.data.values || [])[0];
