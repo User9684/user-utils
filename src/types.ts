@@ -4,11 +4,13 @@ export type Env = {
     PUBLIC_KEY: string;
     TOKEN: string;
     BOT_OWNER: string;
+    FISHFISH_AUTH: string;
+    PHISHOBSERVER_AUTH: string;
     RDAPCache: KVNamespace;
     MessageQueries: KVNamespace;
 };
 
-export type Ctx = EventContext<Env, any, any>
+export type Ctx = EventContext<Env, any, any>;
 
 export enum InteractionType {
     PING = 1,
@@ -301,7 +303,7 @@ export type BotComponent = {
     Execute: (
         env: Env,
         interaction: Interaction,
-        ctx: Ctx,
+        ctx: Ctx
     ) => Promise<InteractionResponse>;
 };
 
@@ -310,6 +312,6 @@ export type BotCommand = {
     Execute: (
         env: Env,
         interaction: Interaction,
-        ctx: Ctx,
+        ctx: Ctx
     ) => Promise<InteractionResponse>;
 };

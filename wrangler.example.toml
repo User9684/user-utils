@@ -9,6 +9,8 @@ name = "user-utils-bot"
 PUBLIC_KEY = "9e1c3a4d1f6b7a5c8b9d0e3f4a1c2d3b9e1f7a6c5b8d0e4f7a2c3b9d8f7e6c4d"
 TOKEN = "MjEyNzk1MTQ1NjM5MTY1OTUy.GKgPxr.dGhpcyBpcyBmYWtlEnczxNF_9z0IbHkZLfJ0w"
 BOT_OWNER = "268473310986240001"
+FISHFISH_AUTH = "Sorry, you wont be able to have this on your own host."
+PHISHOBSERVER_AUTH = "Same as the above."
 
 [placement]
 mode = "smart"
