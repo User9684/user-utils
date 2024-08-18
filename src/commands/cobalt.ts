@@ -32,7 +32,7 @@ const CommandObject: Command = {
 };
 
 const cobaltURL = "https://api.cobalt.tools/api/json";
-const maxAttachmentsPerMessage = 10
+const maxAttachmentsPerMessage = 10;
 
 type CobaltPicker = {
     type?: "video" | "photo" | "gif";
@@ -139,13 +139,15 @@ async function Execute(
         };
     }
 
-    switch (body.status) {
-        case "picker":
-            ctx.waitUntil(
-                (async () => {
+    ctx.waitUntil(
+        (async () => {
+            switch (body.status) {
+                case "picker":
                     let attachments: AttatchmentPartial[][] = [];
 
-                    const messagesNeeded = Math.ceil(body.picker.length / maxAttachmentsPerMessage);
+                    const messagesNeeded = Math.ceil(
+                        body.picker.length / maxAttachmentsPerMessage
+                    );
                     for (let i = 0; i < messagesNeeded; i++) {
                         attachments.push([]);
                     }
@@ -161,7 +163,11 @@ async function Execute(
                             blob: fileData.blob,
                             fileName: fileData.filename,
                         });
-                        if ((currentAttachment + 1) % maxAttachmentsPerMessage === 0) {
+                        if (
+                            (currentAttachment + 1) %
+                                maxAttachmentsPerMessage ===
+                            0
+                        ) {
                             currentMessage += 1;
                         }
                         currentAttachment += 1;
@@ -187,46 +193,49 @@ async function Execute(
                             followup
                         );
                     }
-                })()
-            );
+                    break;
+                case "redirect":
+                case "stream" || "redirct":
+                    if (!body.url) {
+                        return {
+                            type: CallbackType.CHANNEL_MESSAGE_WITH_SOURCE,
+                            data: {
+                                content: `Cobalt did not return a URL!`,
+                            },
+                        };
+                    }
 
-            return {
-                type: CallbackType.CHANNEL_MESSAGE_WITH_SOURCE,
-                data: {
-                    content: "Fetching attachments... (This may take awhile)",
-                },
-            };
-        case "redirect":
-        case "stream" || "redirct":
-            if (!body.url) {
-                return {
-                    type: CallbackType.CHANNEL_MESSAGE_WITH_SOURCE,
-                    data: {
-                        content: `Cobalt did not return a URL!`,
-                    },
-                };
-            }
+                    const fileData = await BlobFromURL(body.url);
 
-            const fileData = await BlobFromURL(body.url);
-
-            return {
-                type: CallbackType.CHANNEL_MESSAGE_WITH_SOURCE,
-                data: {
-                    attachments: [
-                        {
-                            blob: fileData.blob,
-                            fileName: fileData.filename,
+                    const followup = await FormFromPayload({
+                        type: CallbackType.CHANNEL_MESSAGE_WITH_SOURCE,
+                        data: {
+                            attachments: [
+                                {
+                                    blob: fileData.blob,
+                                    fileName: fileData.filename,
+                                },
+                            ],
                         },
-                    ],
-                    flags: 64,
-                },
-            };
-    }
+                    });
+
+                    const res = await DiscordRequest(
+                        env,
+                        `/webhooks/${application_id(env)}/${interaction.token}`,
+                        "POST",
+                        followup
+                    );
+
+                    console.log(await res.text())
+                    break;
+            }
+        })()
+    );
 
     return {
         type: CallbackType.CHANNEL_MESSAGE_WITH_SOURCE,
         data: {
-            content: `Sigma skibidi balls`,
+            content: "Fetching attachment(s)... (This may take awhile)",
         },
     };
 }
