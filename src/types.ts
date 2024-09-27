@@ -6,8 +6,12 @@ export type Env = {
     BOT_OWNER: string;
     FISHFISH_AUTH: string;
     PHISHOBSERVER_AUTH: string;
+    FOXTROTAI_AUTH: string;
+    AI: any;
     RDAPCache: KVNamespace;
     MessageQueries: KVNamespace;
+    CommandWhitelist: KVNamespace;
+    INTERACTION_DEBUG: boolean;
 };
 
 export type Ctx = EventContext<Env, any, any>;
@@ -80,6 +84,23 @@ export type Command = {
 export type AttatchmentPartial = {
     blob: Blob;
     fileName: string;
+};
+
+export type Attachment = {
+    id: string;
+    filename: string;
+    title?: string;
+    description?: string;
+    content_type?: string;
+    size: number;
+    url: string;
+    proxy_url: string;
+    height?: number;
+    width?: number;
+    ephemeral?: boolean;
+    duration_secs?: number;
+    waveform?: string;
+    flags?: number;
 };
 
 export type EmojiPartial = {
@@ -209,11 +230,20 @@ export type InteractionCallback = {
     poll?: {};
 };
 
+export type InteractionResolvedData = {
+    users?: Map<string, User>;
+    members?: Map<string, Member>;
+    roles?: Map<string, {}>;
+    channels?: Map<string, {}>;
+    messages?: Map<string, Message>;
+    attachments?: Map<string, Attachment>;
+};
+
 export type InteractionData = {
     id: string;
     name: string;
     type: InteractionType;
-    resolved?: {};
+    resolved?: InteractionResolvedData;
     options?: InteractionOption[];
     guild_id?: string;
     target_id?: string;
@@ -314,4 +344,5 @@ export type BotCommand = {
         interaction: Interaction,
         ctx: Ctx
     ) => Promise<InteractionResponse>;
+    ObjectInit?: (env: Env) => Promise<Command>;
 };

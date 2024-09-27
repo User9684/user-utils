@@ -120,6 +120,23 @@ export default {
             });
         }
 
+        // Debugging sent to Cloudflare temporary logs, no data is stored.
+        if (env.INTERACTION_DEBUG) {
+            const userID =
+                requestBody?.member?.user?.id || requestBody?.user?.id || "";
+            const optionsStr = (requestBody.data.options || [])
+                .map((option) => `${option.name}: ${option.value}`)
+                .join(", ");
+
+            console.log(
+                `User ${userID} executed command/component ${
+                    requestBody.data.custom_id || requestBody.data.name
+                }\nChannel: ${requestBody.channel_id}\nInteraction ID:${
+                    requestBody.id
+                }\nArgs: ${optionsStr}`
+            );
+        }
+
         ctx.waitUntil(
             (async () => {
                 const response = await handleInteraction(requestBody, env, ctx);

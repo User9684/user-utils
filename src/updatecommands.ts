@@ -13,7 +13,12 @@ export async function Update(env: Env): Promise<any> {
 
     for (const index in commands) {
         const command = commands[index];
-        commandObjects.push({ ...command.CommandObject });
+        let commandObject = command.CommandObject;
+        if (command.ObjectInit) {
+            commandObject = await command.ObjectInit(env);
+        }
+        
+        commandObjects.push({ ...commandObject });
     }
 
     const response = await DiscordRequest(env, apiURL, "PUT", commandObjects);
