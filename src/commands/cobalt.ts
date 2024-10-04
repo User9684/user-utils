@@ -16,6 +16,7 @@ import {
     OptionType,
     Message,
 } from "../types";
+import { CobaltResponse, GetCobaltData } from "../lib/cobalt";
 
 const CommandObject: Command = {
     name: "cobalt",
@@ -32,7 +33,6 @@ const CommandObject: Command = {
     ],
 };
 
-const cobaltURL = "https://api.cobalt.tools/api/json";
 const maxAttachmentsPerMessage = 10;
 
 type CobaltPicker = {
@@ -41,72 +41,10 @@ type CobaltPicker = {
     thumb?: string;
 };
 
-type CobaltResponse = {
-    status:
-        | "error"
-        | "redirect"
-        | "stream"
-        | "success"
-        | "rate-limit"
-        | "picker";
-    text?: string;
-    url?: string;
-    pickerType?: "various" | "images";
-    picker?: CobaltPicker[];
-    audio?: string;
-};
-
 type BlobData = {
     blob: Blob;
     filename: string;
 };
-
-async function getCobaltData(
-    url: string,
-    env: Env
-): Promise<Message | CobaltResponse> {
-    const response = await fetch(cobaltURL, {
-        headers: {
-            "User-Agent": "9684 utilities bot",
-            Accept: "application/json",
-            "Content-Type": "application/json",
-        },
-        method: "POST",
-        body: JSON.stringify({
-            url: url,
-        }),
-    });
-
-    const body: CobaltResponse = await response.json();
-
-    if (body.status === "rate-limit") {
-        return {
-            content: `Currently ratelimited!`,
-        };
-    }
-    if (body.status === "error") {
-        return {
-            content: `Something went wrong! \`${body.text}\``,
-        };
-    }
-    if (
-        !(
-            body.status === "picker" ||
-            body.status === "redirect" ||
-            body.status == "stream"
-        )
-    ) {
-        return {
-            content: `Unhandled error occured!${
-                (env.BOT_OWNER &&
-                    ` Please contact <@!${env.BOT_OWNER}> for further assistance.`) ||
-                ""
-            }`,
-        };
-    }
-
-    return body;
-}
 
 async function uploadMedia(
     cobaltData: CobaltResponse,
@@ -214,8 +152,8 @@ async function uploadMedia(
         "PATCH",
         {
             content: `Finished uploading media! ${
-                (failedUploads > 0 && `(${failedUploads} failed uploads)`) || ""
-            }`,
+                (failedUploads > 0 && `(${failedUploads} failed uploads) `) || ""
+            }| media fetched from \`${cobaltData.serviceUsed}\``,
         }
     );
 }
@@ -258,7 +196,25 @@ async function Execute(
 
     ctx.waitUntil(
         (async () => {
-            const cobaltResponse = await getCobaltData(url, env);
+            const cobaltResponse = await GetCobaltData(url);
+            if (!cobaltResponse) {
+                console.log("Update message with error");
+                const res = await DiscordRequest(
+                    env,
+                    `/webhooks/${application_id(env)}/${
+                        interaction.token
+                    }/messages/@original`,
+                    "PATCH",
+                    {
+                        content:
+                            "Could not fetch content from any cobalt instances!",
+                    }
+                );
+
+                console.log(await res.text());
+
+                return;
+            }
             // Not sure of any better way I could do this besides using a class instead
             if (typeof (<CobaltResponse>cobaltResponse).status !== "string") {
                 await DiscordRequest(
