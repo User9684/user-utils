@@ -38,6 +38,11 @@ export type CobaltResponse = {
     serviceUsed?: string;
 };
 
+type CobaltPair = {
+    api: string;
+    frontend?: string;
+}
+
 const instancesList = "https://instances.hyper.lol/instances.json"; // Maintained by hyperdefined, ty :3
 
 const isURL = (uri: string) => {
@@ -58,7 +63,7 @@ const unmarshalResponse = async (
     }
 };
 
-async function getPossibleAPIs(): Promise<string[]> {
+async function getPossibleAPIs(): Promise<CobaltPair[]> {
     const response = await fetch(instancesList, {
         headers: {
             "User-Agent": "9684 utilities bot",
@@ -68,7 +73,7 @@ async function getPossibleAPIs(): Promise<string[]> {
         method: "GET",
     });
 
-    const acceptedAPIs: string[] = [];
+    const acceptedAPIs: CobaltPair[] = [];
 
     const body: Instance[] = await response.json();
 
@@ -87,7 +92,15 @@ async function getPossibleAPIs(): Promise<string[]> {
             continue;
         }
 
-        acceptedAPIs.push(apiURI);
+        const pair:CobaltPair = {
+            api: apiURI,
+        }
+
+        if (instance.frontEnd !== "None") {
+            pair.frontend = instance.frontEnd
+        }
+
+        acceptedAPIs.push(pair);
     }
 
     return acceptedAPIs;
@@ -122,7 +135,7 @@ export async function GetCobaltData(
     for (const i in instances) {
         const apiURL = instances[i];
 
-        const response = await fetch(apiURL + "/api/json", {
+        const response = await fetch(apiURL.api + "/api/json", {
             headers: {
                 "User-Agent": "9684 utilities bot",
                 Accept: "application/json",
@@ -160,7 +173,7 @@ export async function GetCobaltData(
         }
 
         console.log(`Cobalt: ${apiURL} passed all checks`);
-        body.serviceUsed = apiURL;
+        body.serviceUsed = apiURL.frontend || apiURL.api;
 
         return body;
     }
