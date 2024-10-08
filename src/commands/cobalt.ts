@@ -15,8 +15,13 @@ import {
     InteractionResponse,
     OptionType,
     Message,
+    InteractionType,
+    Command_Type,
 } from "../types";
 import { CobaltResponse, GetCobaltData } from "../lib/cobalt";
+
+const urlRegex =
+    /https?:\/\/(?:www\.)?([-a-zA-Z0-9@:%._\+~#=]{2,256}\.[a-z]{2,}\b)*(\/[\/\d\w\.-]*)*(?:[\?])*([^ \n]+)*/gi;
 
 const CommandObject: Command = {
     name: "cobalt",
@@ -35,12 +40,6 @@ const CommandObject: Command = {
 
 const maxAttachmentsPerMessage = 10;
 
-type CobaltPicker = {
-    type?: "video" | "photo" | "gif";
-    url: string;
-    thumb?: string;
-};
-
 type BlobData = {
     blob: Blob;
     filename: string;
@@ -50,7 +49,7 @@ async function uploadMedia(
     cobaltData: CobaltResponse,
     interaction: Interaction,
     env: Env
-) {
+): Promise<boolean> {
     let failedUploads = 0;
     switch (cobaltData.status) {
         case "picker":
@@ -105,17 +104,23 @@ async function uploadMedia(
             }
             break;
         case "redirect":
-        case "stream" || "redirct":
+        case "tunnel":
+        case "stream" || "redirct" || "tunnel":
             if (!cobaltData.url) {
-                return {
-                    type: CallbackType.CHANNEL_MESSAGE_WITH_SOURCE,
-                    data: {
-                        content: `Cobalt did not return a URL!`,
-                    },
-                };
+                return false;
             }
 
             const fileData = await BlobFromURL(cobaltData.url);
+
+            if (fileData.blob.size <= 10) {
+                console.log("File size too small!");
+                return false;
+            }
+
+            if (fileData.filename.includes("html")) {
+                console.log("Invalid media type!");
+                return false;
+            }
 
             const followup = await FormFromPayload({
                 type: CallbackType.CHANNEL_MESSAGE_WITH_SOURCE,
@@ -152,10 +157,13 @@ async function uploadMedia(
         "PATCH",
         {
             content: `Finished uploading media! ${
-                (failedUploads > 0 && `(${failedUploads} failed uploads) `) || ""
+                (failedUploads > 0 && `(${failedUploads} failed uploads) `) ||
+                ""
             }| media fetched from \`${cobaltData.serviceUsed}\``,
         }
     );
+
+    return true;
 }
 
 async function BlobFromURL(url: string): Promise<BlobData> {
@@ -182,51 +190,103 @@ async function Execute(
     interaction: Interaction,
     ctx: Ctx
 ): Promise<InteractionResponse> {
-    const urlOption = interaction?.data?.options?.[0];
-    if (!urlOption || !urlOption.value || typeof urlOption.value !== "string") {
-        return {
-            type: CallbackType.CHANNEL_MESSAGE_WITH_SOURCE,
-            data: {
-                content: `Erm, what the sigma?`,
-            },
-        };
-    }
-
-    const url: string = urlOption.value;
-
-    ctx.waitUntil(
-        (async () => {
-            const cobaltResponse = await GetCobaltData(url);
-            if (!cobaltResponse) {
-                console.log("Update message with error");
-                const res = await DiscordRequest(
-                    env,
-                    `/webhooks/${application_id(env)}/${
-                        interaction.token
-                    }/messages/@original`,
-                    "PATCH",
-                    {
-                        content:
-                            "Could not fetch content from any cobalt instances!",
-                    }
-                );
-
-                console.log(await res.text());
-
-                return;
+    let uri = "";
+    switch (interaction.data.type) {
+        case Command_Type.CHAT_INPUT:
+            const urlOption = interaction?.data?.options?.[0];
+            if (
+                !urlOption ||
+                !urlOption.value ||
+                typeof urlOption.value !== "string"
+            ) {
+                return {
+                    type: CallbackType.CHANNEL_MESSAGE_WITH_SOURCE,
+                    data: {
+                        content: `Erm, what the sigma?`,
+                    },
+                };
             }
-            // Not sure of any better way I could do this besides using a class instead
-            if (typeof (<CobaltResponse>cobaltResponse).status !== "string") {
+
+            uri = urlOption.value;
+            break;
+        case Command_Type.MESSAGE:
+            const message: string =
+                interaction.data.resolved.messages[interaction.data.target_id]
+                    .content;
+
+            const res = urlRegex.exec(message);
+            if (!res) {
                 await DiscordRequest(
                     env,
                     `/webhooks/${application_id(env)}/${
                         interaction.token
                     }/messages/@original`,
                     "PATCH",
-                    cobaltResponse
+                    {
+                        content: "No valid URLs found in message!",
+                    }
+                );
+                return;
+            }
+
+            uri = res[0];
+    }
+
+    ctx.waitUntil(
+        (async () => {
+            const excludedInstances: string[] = [];
+
+            for (let i = 0; i <= 10; i++) {
+                const cobaltResponse = await GetCobaltData(
+                    uri,
+                    excludedInstances
+                );
+                if (!cobaltResponse) {
+                    console.log("Update message with error");
+                    const res = await DiscordRequest(
+                        env,
+                        `/webhooks/${application_id(env)}/${
+                            interaction.token
+                        }/messages/@original`,
+                        "PATCH",
+                        {
+                            content:
+                                "Could not fetch content from any cobalt instances!",
+                        }
+                    );
+
+                    console.log(await res.text());
+
+                    return;
+                }
+
+                if (
+                    typeof (<CobaltResponse>cobaltResponse).status !== "string"
+                ) {
+                    continue;
+                }
+
+                await DiscordRequest(
+                    env,
+                    `/webhooks/${application_id(env)}/${
+                        interaction.token
+                    }/messages/@original`,
+                    "PATCH",
+                    {
+                        content: "Downloading media... (This may take awhile)",
+                    }
                 );
 
-                return;
+                const uploadSuccess = await uploadMedia(
+                    <CobaltResponse>cobaltResponse,
+                    interaction,
+                    env
+                );
+
+                if (uploadSuccess) {
+                    return;
+                }
+                excludedInstances.push(cobaltResponse.serviceUsed);
             }
 
             await DiscordRequest(
@@ -236,11 +296,10 @@ async function Execute(
                 }/messages/@original`,
                 "PATCH",
                 {
-                    content: "Downloading media... (This may take awhile)",
+                    content:
+                        "Could not fetch proper data from any cobalt instances!",
                 }
             );
-
-            await uploadMedia(<CobaltResponse>cobaltResponse, interaction, env);
         })()
     );
 

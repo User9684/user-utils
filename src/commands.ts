@@ -7,6 +7,7 @@ import * as say from "./commands/say";
 import * as whois from "./commands/whois";
 import * as report from "./commands/report";
 import * as cobalt from "./commands/cobalt";
+import * as cobalt_message from "./commands/cobalt_message";
 import * as foxtrotai from "./commands/foxtrot_ai";
 import * as whitelist from "./commands/whitelist";
 import * as ai from "./commands/ai";
@@ -20,6 +21,7 @@ export const commands: { [id: string]: BotCommand } = {
     whois,
     report,
     cobalt,
+    cobalt_message,
     foxtrotai,
     whitelist,
     ai,

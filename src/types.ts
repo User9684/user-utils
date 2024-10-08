@@ -20,6 +20,7 @@ export enum InteractionType {
     PING = 1,
     APPLICATION_COMMAND,
     MESSAGE_COMPONENT,
+    MESSAGE_COMMAND = 3,
     APPLICATION_COMMAND_AUTOCOMPLETE,
     MODAL_SUBMIT,
 }
@@ -72,9 +73,10 @@ export type CommandOption = {
 
 export type Command = {
     id?: string;
+    type?: Command_Type;
     application_id?: string;
     guild_id?: string;
-    description: string;
+    description?: string;
     name: string;
     options?: CommandOption[];
     integration_types?: Array<"0" | "1">;
@@ -242,7 +244,7 @@ export type InteractionResolvedData = {
 export type InteractionData = {
     id: string;
     name: string;
-    type: InteractionType;
+    type: Command_Type;
     resolved?: InteractionResolvedData;
     options?: InteractionOption[];
     guild_id?: string;

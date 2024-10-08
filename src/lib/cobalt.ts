@@ -27,6 +27,7 @@ export type CobaltResponse = {
         | "error"
         | "redirect"
         | "stream"
+        | "tunnel"
         | "success"
         | "rate-limit"
         | "picker";
@@ -41,7 +42,8 @@ export type CobaltResponse = {
 type CobaltPair = {
     api: string;
     frontend?: string;
-}
+    version: string;
+};
 
 const instancesList = "https://instances.hyper.lol/instances.json"; // Maintained by hyperdefined, ty :3
 
@@ -79,7 +81,7 @@ async function getPossibleAPIs(): Promise<CobaltPair[]> {
 
     for (const i in body) {
         const instance = body[i];
-        const apiURI = "https://" + instance.api;
+        const apiURI = `${instance.protocol}://${instance.api}`;
         if (!instance.api_online || !isURL(apiURI)) {
             continue;
         }
@@ -92,12 +94,13 @@ async function getPossibleAPIs(): Promise<CobaltPair[]> {
             continue;
         }
 
-        const pair:CobaltPair = {
+        const pair: CobaltPair = {
             api: apiURI,
-        }
+            version: instance.version,
+        };
 
         if (instance.frontEnd !== "None") {
-            pair.frontend = instance.frontEnd
+            pair.frontend = instance.frontEnd;
         }
 
         acceptedAPIs.push(pair);
@@ -123,7 +126,8 @@ async function parseInput(input: string): Promise<string | false> {
 }
 
 export async function GetCobaltData(
-    url: string
+    url: string,
+    excludedInstances?: string[]
 ): Promise<CobaltResponse | false> {
     const parsedURL = await parseInput(url);
     if (!parsedURL) {
@@ -133,9 +137,22 @@ export async function GetCobaltData(
     const instances = await getPossibleAPIs();
     console.log(`Cobalt: Found ${instances.length} possible APIs`);
     for (const i in instances) {
-        const apiURL = instances[i];
+        const cobaltPair = instances[i];
 
-        const response = await fetch(apiURL.api + "/api/json", {
+        const serviceString = cobaltPair.frontend || cobaltPair.api;
+
+        if (
+            excludedInstances &&
+            excludedInstances.find((x) => x == serviceString)
+        ) {
+            continue;
+        }
+
+        const apiURI =
+            cobaltPair.api +
+            `${(cobaltPair.version.startsWith("10.") && "/") || "/api/json"}`;
+
+        const response = await fetch(apiURI, {
             headers: {
                 "User-Agent": "9684 utilities bot",
                 Accept: "application/json",
@@ -154,26 +171,29 @@ export async function GetCobaltData(
         }
 
         if (body.status === "rate-limit") {
-            console.log(`Cobalt: ${apiURL} ratelimited`);
+            console.log(`Cobalt: ${cobaltPair.api} ratelimited`);
             continue;
         }
         if (body.status === "error") {
-            console.log(`Cobalt: ${apiURL} errored`);
+            console.log(`Cobalt: ${cobaltPair.api} errored`);
             continue;
         }
         if (
             !(
                 body.status === "picker" ||
                 body.status === "redirect" ||
-                body.status === "stream"
+                body.status === "stream" ||
+                body.status === "tunnel"
             )
         ) {
-            console.log(`Cobalt: ${apiURL} malformed status ${JSON.stringify(body)}`);
+            console.log(
+                `Cobalt: ${apiURI} malformed status ${JSON.stringify(body)}`
+            );
             continue;
         }
 
-        console.log(`Cobalt: ${apiURL} passed all checks`);
-        body.serviceUsed = apiURL.frontend || apiURL.api;
+        console.log(`Cobalt: ${cobaltPair.api} passed all checks`);
+        body.serviceUsed = serviceString;
 
         return body;
     }
