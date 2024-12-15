@@ -33,6 +33,7 @@ const ttiModels = [
     "@cf/stabilityai/stable-diffusion-xl-base-1.0",
     "@cf/bytedance/stable-diffusion-xl-lightning",
     "@cf/runwayml/stable-diffusion-v1-5-img2img",
+    "@cf/runwayml/stable-diffusion-v1-5-inpainting",
 ];
 
 const CommandObject: Command = {
@@ -120,10 +121,13 @@ async function ObjectInit(env: Env): Promise<Command> {
     const ittIndex = CommandObject.options.findIndex((v) => {
         return v.name === "itt";
     });
-    const ittModelsIndex = CommandObject.options[ittIndex].options.findIndex((v) => {
-        return v.name === "model";
-    });
-    CommandObject.options[ittIndex].options[ittModelsIndex].choices = ittOptions;
+    const ittModelsIndex = CommandObject.options[ittIndex].options.findIndex(
+        (v) => {
+            return v.name === "model";
+        }
+    );
+    CommandObject.options[ittIndex].options[ittModelsIndex].choices =
+        ittOptions;
 
     // Set text-to-image model choices
     const ttiOptions: CommandOptionChoice[] = [];
@@ -137,10 +141,13 @@ async function ObjectInit(env: Env): Promise<Command> {
     const ttiIndex = CommandObject.options.findIndex((v) => {
         return v.name === "tti";
     });
-    const ttiModelsIndex = CommandObject.options[ttiIndex].options.findIndex((v) => {
-        return v.name === "model";
-    });
-    CommandObject.options[ttiIndex].options[ttiModelsIndex].choices = ttiOptions;
+    const ttiModelsIndex = CommandObject.options[ttiIndex].options.findIndex(
+        (v) => {
+            return v.name === "model";
+        }
+    );
+    CommandObject.options[ttiIndex].options[ttiModelsIndex].choices =
+        ttiOptions;
 
     return CommandObject;
 }
@@ -260,7 +267,7 @@ async function ExecuteITT(
 
     if (blobdata) {
         const input = {
-            image: [...(await blobdata.blob.bytes())],
+            image: [...new Uint8Array(await blobdata.blob.arrayBuffer())],
             prompt: prompt,
             max_tokens: 512,
         };
@@ -304,7 +311,7 @@ async function ExecuteTTI(
     };
 
     if (blobdata) {
-        input.image = [...(await blobdata.blob.bytes())];
+        input.image = [...new Uint8Array(await blobdata.blob.arrayBuffer())];
     }
 
     const res = await env.AI.run(modelSelected, input);
