@@ -7,6 +7,8 @@ export type Env = {
     FISHFISH_AUTH: string;
     PHISHOBSERVER_AUTH: string;
     FOXTROTAI_AUTH: string;
+    COBALT_URL:string; // base cobalt URI
+    COBALT_ACCESS_HEADER:string;
     AI: any;
     RDAPCache: KVNamespace;
     MessageQueries: KVNamespace;

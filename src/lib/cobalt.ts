@@ -1,20 +1,6 @@
 "use strict";
 
-type Instance = {
-    api: string;
-    api_online: boolean;
-    branch: string;
-    commit: string;
-    cors: number;
-    frontEnd: string;
-    name: string;
-    protocol: string;
-    score: number;
-    services: Map<string, boolean>;
-    startTime: number;
-    trust: string;
-    version: string;
-};
+import { Env } from "../types";
 
 export type CobaltPicker = {
     type?: "video" | "photo" | "gif";
@@ -36,16 +22,7 @@ export type CobaltResponse = {
     pickerType?: "various" | "images";
     picker?: CobaltPicker[];
     audio?: string;
-    serviceUsed?: string;
 };
-
-type CobaltPair = {
-    api: string;
-    frontend?: string;
-    version: string;
-};
-
-const instancesList = "https://instances.hyper.lol/instances.json"; // Maintained by hyperdefined, ty :3
 
 const isURL = (uri: string) => {
     try {
@@ -60,54 +37,11 @@ const unmarshalResponse = async (
 ): Promise<CobaltResponse | false> => {
     try {
         return await response.json();
-    } catch (_) {
+    } catch (err) {
+        console.log(err);
         return false;
     }
 };
-
-async function getPossibleAPIs(): Promise<CobaltPair[]> {
-    const response = await fetch(instancesList, {
-        headers: {
-            "User-Agent": "9684 utilities bot",
-            Accept: "application/json",
-            "Content-Type": "application/json",
-        },
-        method: "GET",
-    });
-
-    const acceptedAPIs: CobaltPair[] = [];
-
-    const body: Instance[] = await response.json();
-
-    for (const i in body) {
-        const instance = body[i];
-        const apiURI = `${instance.protocol}://${instance.api}`;
-        if (!instance.api_online || !isURL(apiURI)) {
-            continue;
-        }
-
-        if (instance.score < 85) {
-            continue;
-        }
-
-        if (instance.trust !== "safe") {
-            continue;
-        }
-
-        const pair: CobaltPair = {
-            api: apiURI,
-            version: instance.version,
-        };
-
-        if (instance.frontEnd !== "None") {
-            pair.frontend = instance.frontEnd;
-        }
-
-        acceptedAPIs.push(pair);
-    }
-
-    return acceptedAPIs;
-}
 
 async function parseInput(input: string): Promise<string | false> {
     if (!isURL(input)) {
@@ -118,85 +52,78 @@ async function parseInput(input: string): Promise<string | false> {
 
     switch (url.hostname) {
         case "www.instagram.com":
-        case "instagram.com" || "www.instagram.com":
+        case "instagram.com":
             input = input.replace("/reels/", "/reel/");
+            break;
     }
 
     return input;
 }
 
+export async function CobaltHeaders(env: Env, contentType: string) {
+    const requestHeaders = {
+        "User-Agent": "9684 utilities bot",
+        Accept: "application/json",
+        "Content-Type": contentType,
+    };
+
+    if (env.COBALT_ACCESS_HEADER && env.COBALT_ACCESS_HEADER.length > 0) {
+        requestHeaders["authorization"] = env.COBALT_ACCESS_HEADER;
+    }
+
+    console.log(requestHeaders);
+
+    return requestHeaders;
+}
+
 export async function GetCobaltData(
-    url: string,
-    excludedInstances?: string[]
-): Promise<CobaltResponse | false> {
+    env: Env,
+    url: string
+): Promise<CobaltResponse | string> {
     const parsedURL = await parseInput(url);
     if (!parsedURL) {
-        return false;
+        console.log("Cobalt: URI invalid");
+        return "Invalid URI!";
     }
 
-    const instances = await getPossibleAPIs();
-    console.log(`Cobalt: Found ${instances.length} possible APIs`);
-    for (const i in instances) {
-        const cobaltPair = instances[i];
+    const apiURI = `${env.COBALT_URL}`;
 
-        const serviceString = cobaltPair.frontend || cobaltPair.api;
+    const response = await fetch(apiURI, {
+        headers: await CobaltHeaders(env, "application/json"),
+        method: "POST",
+        body: JSON.stringify({
+            url: parsedURL,
+        }),
+    });
 
-        if (
-            excludedInstances &&
-            excludedInstances.find((x) => x == serviceString)
-        ) {
-            continue;
-        }
+    const body = await unmarshalResponse(response);
 
-        const apiURI =
-            cobaltPair.api +
-            `${(cobaltPair.version.startsWith("10.") && "/") || "/api/json"}`;
-
-        const response = await fetch(apiURI, {
-            headers: {
-                "User-Agent": "9684 utilities bot",
-                Accept: "application/json",
-                "Content-Type": "application/json",
-            },
-            method: "POST",
-            body: JSON.stringify({
-                url: parsedURL,
-            }),
-        });
-
-        const body = await unmarshalResponse(response);
-
-        if (!body) {
-            continue;
-        }
-
-        if (body.status === "rate-limit") {
-            console.log(`Cobalt: ${cobaltPair.api} ratelimited`);
-            continue;
-        }
-        if (body.status === "error") {
-            console.log(`Cobalt: ${cobaltPair.api} errored`);
-            continue;
-        }
-        if (
-            !(
-                body.status === "picker" ||
-                body.status === "redirect" ||
-                body.status === "stream" ||
-                body.status === "tunnel"
-            )
-        ) {
-            console.log(
-                `Cobalt: ${apiURI} malformed status ${JSON.stringify(body)}`
-            );
-            continue;
-        }
-
-        console.log(`Cobalt: ${cobaltPair.api} passed all checks`);
-        body.serviceUsed = serviceString;
-
-        return body;
+    if (!body) {
+        console.log(`Invalid response!`);
+        return "Invalid response from cobalt!";
     }
 
-    return false;
+    if (body.status === "rate-limit") {
+        console.log(`Cobalt: api ratelimited`);
+        return "Ratelimited!";
+    }
+    if (body.status === "error") {
+        console.log(`Cobalt: api errored`);
+        return "Something errored while fetching!";
+    }
+    if (
+        !(
+            body.status === "picker" ||
+            body.status === "redirect" ||
+            body.status === "stream" ||
+            body.status === "tunnel"
+        )
+    ) {
+        console.log(
+            `Cobalt: ${apiURI} malformed status ${JSON.stringify(body)}`
+        );
+        return `Malformed status \`${body.status}\``;
+    }
+
+    return body;
 }
