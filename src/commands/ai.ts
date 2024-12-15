@@ -5,6 +5,8 @@ import {
     Attachment,
     CallbackType,
     Command,
+    CommandOption,
+    CommandOptionChoice,
     Env,
     Interaction,
     InteractionOption,
@@ -23,10 +25,17 @@ type TTIInput = {
     image?: number[];
 };
 
-const ittModel = "@cf/unum/uform-gen2-qwen-500m";
-const ttiModel = "@cf/stabilityai/stable-diffusion-xl-base-1.0";
+const ittModels = [
+    "@cf/unum/uform-gen2-qwen-500m",
+    "@cf/llava-hf/llava-1.5-7b-hf",
+];
+const ttiModels = [
+    "@cf/stabilityai/stable-diffusion-xl-base-1.0",
+    "@cf/bytedance/stable-diffusion-xl-lightning",
+    "@cf/runwayml/stable-diffusion-v1-5-img2img",
+];
 
-export const CommandObject: Command = {
+const CommandObject: Command = {
     name: "ai",
     description: "Ai commands (WHITELIST ONLY)",
     options: [
@@ -50,6 +59,11 @@ export const CommandObject: Command = {
                     type: OptionType.STRING,
                     name: "url",
                     description: "Url to pull image from",
+                },
+                {
+                    type: OptionType.STRING,
+                    name: "model",
+                    description: "AI model to use",
                 },
             ],
         },
@@ -81,6 +95,11 @@ export const CommandObject: Command = {
                     name: "url",
                     description: "Url to pull image from",
                 },
+                {
+                    type: OptionType.STRING,
+                    name: "model",
+                    description: "AI model to use",
+                },
             ],
         },
     ],
@@ -88,7 +107,45 @@ export const CommandObject: Command = {
     contexts: ["0", "1", "2"],
 };
 
-export async function Execute(
+async function ObjectInit(env: Env): Promise<Command> {
+    // Set image-to-text model choices
+    const ittOptions: CommandOptionChoice[] = [];
+    for (const i in ittModels) {
+        const nameSplit = ittModels[i].split("/");
+        ittOptions.push({
+            name: nameSplit[nameSplit.length - 1],
+            value: ittModels[i],
+        });
+    }
+    const ittIndex = CommandObject.options.findIndex((v) => {
+        return v.name === "itt";
+    });
+    const ittModelsIndex = CommandObject.options[ittIndex].options.findIndex((v) => {
+        return v.name === "model";
+    });
+    CommandObject.options[ittIndex].options[ittModelsIndex].choices = ittOptions;
+
+    // Set text-to-image model choices
+    const ttiOptions: CommandOptionChoice[] = [];
+    for (const i in ttiModels) {
+        const nameSplit = ttiModels[i].split("/");
+        ttiOptions.push({
+            name: nameSplit[nameSplit.length - 1],
+            value: ttiModels[i],
+        });
+    }
+    const ttiIndex = CommandObject.options.findIndex((v) => {
+        return v.name === "tti";
+    });
+    const ttiModelsIndex = CommandObject.options[ttiIndex].options.findIndex((v) => {
+        return v.name === "model";
+    });
+    CommandObject.options[ttiIndex].options[ttiModelsIndex].choices = ttiOptions;
+
+    return CommandObject;
+}
+
+async function Execute(
     env: Env,
     interaction: Interaction
 ): Promise<InteractionResponse> {
@@ -186,6 +243,9 @@ async function ExecuteITT(
     const options = subcommandData.options || [];
     const prompt = options[0].value as string;
     const imgdata = options[1];
+    const modelOption = options.find((v) => v.name === "model");
+
+    let modelSelected = modelOption?.value || ittModels[0];
 
     if (!imgdata) {
         return {
@@ -205,7 +265,7 @@ async function ExecuteITT(
             max_tokens: 512,
         };
 
-        const res = await env.AI.run(ittModel, input);
+        const res = await env.AI.run(modelSelected, input);
 
         return {
             type: CallbackType.CHANNEL_MESSAGE_WITH_SOURCE,
@@ -232,6 +292,9 @@ async function ExecuteTTI(
     const prompt = options[0].value as string;
     const strength = options[1].value as number;
     const imgdata = options[2];
+    const modelOption = options.find((v) => v.name === "model");
+
+    let modelSelected = modelOption?.value || ttiModels[0];
 
     const blobdata = await blobFromOption(imgdata, interaction);
 
@@ -244,7 +307,7 @@ async function ExecuteTTI(
         input.image = [...(await blobdata.blob.bytes())];
     }
 
-    const res = await env.AI.run(ttiModel, input);
+    const res = await env.AI.run(modelSelected, input);
 
     const buffer = await new Response(res).arrayBuffer();
 
@@ -263,3 +326,5 @@ async function ExecuteTTI(
         },
     };
 }
+
+export { CommandObject, ObjectInit, Execute };
