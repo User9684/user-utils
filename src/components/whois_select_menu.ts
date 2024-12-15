@@ -65,7 +65,6 @@ async function Execute(
                 case "ns":
                 case "events":
                 case "ipinfo":
-                case "entities" || "ns" || "events" || "ipinfo":
                     const { embeds, components } =
                         await embedAndComponentsFromRDAP(
                             RDAPResponse,
