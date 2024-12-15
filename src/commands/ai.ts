@@ -25,7 +25,15 @@ type TTIInput = {
     image?: number[];
 };
 
-const chatModels = ["@hf/thebloke/llama-2-13b-chat-awq"];
+const chatModels = [
+    "@hf/thebloke/llama-2-13b-chat-awq",
+    "@hf/nousresearch/hermes-2-pro-mistral-7b",
+    "@cf/deepseek-ai/deepseek-math-7b-instruct",
+    "@hf/google/gemma-7b-it",
+    "@hf/mistral/mistral-7b-instruct-v0.2",
+    "@hf/nexusflow/starling-lm-7b-beta",
+    "@cf/qwen/qwen1.5-7b-chat-awq",
+];
 const ittModels = [
     "@cf/unum/uform-gen2-qwen-500m",
     "@cf/llava-hf/llava-1.5-7b-hf",
@@ -226,7 +234,7 @@ async function Execute(
     const subcommandData = interaction?.data?.options?.[0];
     switch (subcommandData?.name) {
         case "chat":
-
+            return await ExecuteChat(env, interaction, subcommandData);
         case "itt":
             return await ExecuteITT(env, interaction, subcommandData);
         case "tti":
