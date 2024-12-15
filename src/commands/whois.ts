@@ -22,6 +22,7 @@ import {
     Entity,
 } from "../lib/RDAP";
 import { RandomEmbedColor } from "../lib/discord";
+import { Whois } from "../lib/whois";
 
 export async function parseCard(vcard: any[]): Promise<EmbedField> {
     const [name, parameters, type, value] = vcard;
@@ -299,27 +300,6 @@ const CommandObject: Command = {
         },
     ],
 };
-
-async function Whois(query: string): Promise<string | undefined> {
-    const whoisQuery = new TextEncoder().encode(query + "\r\n");
-
-    const socket = connect("whois.iana.org:43");
-    const writer = socket.writable.getWriter();
-    await writer.write(whoisQuery);
-
-    const res = new Response(socket.readable);
-    const text = await res.text();
-    socket.close();
-
-    if (text.includes("This query returned 0 objects")) {
-        return;
-    }
-    if (text.includes("Error: Invalid query")) {
-        return;
-    }
-
-    return text;
-}
 
 async function Execute(
     env: Env,
