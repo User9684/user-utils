@@ -25,6 +25,7 @@ type TTIInput = {
     image?: number[];
 };
 
+const chatModels = ["@hf/thebloke/llama-2-13b-chat-awq"];
 const ittModels = [
     "@cf/unum/uform-gen2-qwen-500m",
     "@cf/llava-hf/llava-1.5-7b-hf",
@@ -40,6 +41,33 @@ const CommandObject: Command = {
     name: "ai",
     description: "Ai commands (WHITELIST ONLY)",
     options: [
+        {
+            type: OptionType.SUB_COMMAND,
+            name: "chat",
+            description:
+                "Send a message to an LLM! (No chat history currently)",
+            options: [
+                {
+                    type: OptionType.STRING,
+                    name: "prompt",
+                    description: "Prompt to give the AI",
+                    required: true,
+                },
+                {
+                    type: OptionType.NUMBER,
+                    name: "temp",
+                    description: "Randomness value (higher = more random)",
+                    min_value: 0,
+                    max_value: 5,
+                    required: false,
+                },
+                {
+                    type: OptionType.STRING,
+                    name: "model",
+                    description: "AI model to use",
+                },
+            ],
+        },
         {
             type: OptionType.SUB_COMMAND,
             name: "itt",
@@ -109,8 +137,20 @@ const CommandObject: Command = {
 };
 
 async function ObjectInit(env: Env): Promise<Command> {
-    // Set image-to-text model choices
+    // Initialize option lists
+    const chatOptions: CommandOptionChoice[] = [];
     const ittOptions: CommandOptionChoice[] = [];
+    const ttiOptions: CommandOptionChoice[] = [];
+
+    // Set chat model choices
+    for (const i in chatModels) {
+        const nameSplit = chatModels[i].split("/");
+        chatOptions.push({
+            name: nameSplit[nameSplit.length - 1],
+            value: chatModels[i],
+        });
+    }
+    // Set image-to-text model choices
     for (const i in ittModels) {
         const nameSplit = ittModels[i].split("/");
         ittOptions.push({
@@ -118,6 +158,28 @@ async function ObjectInit(env: Env): Promise<Command> {
             value: ittModels[i],
         });
     }
+    // Set text-to-image model choices
+    for (const i in ttiModels) {
+        const nameSplit = ttiModels[i].split("/");
+        ttiOptions.push({
+            name: nameSplit[nameSplit.length - 1],
+            value: ttiModels[i],
+        });
+    }
+
+    // Set option list for chat
+    const chatIndex = CommandObject.options.findIndex((v) => {
+        return v.name === "chat";
+    });
+    const chatModelsIndex = CommandObject.options[chatIndex].options.findIndex(
+        (v) => {
+            return v.name === "model";
+        }
+    );
+    CommandObject.options[chatIndex].options[chatModelsIndex].choices =
+        chatOptions;
+
+    // Set option list for image to text
     const ittIndex = CommandObject.options.findIndex((v) => {
         return v.name === "itt";
     });
@@ -129,15 +191,7 @@ async function ObjectInit(env: Env): Promise<Command> {
     CommandObject.options[ittIndex].options[ittModelsIndex].choices =
         ittOptions;
 
-    // Set text-to-image model choices
-    const ttiOptions: CommandOptionChoice[] = [];
-    for (const i in ttiModels) {
-        const nameSplit = ttiModels[i].split("/");
-        ttiOptions.push({
-            name: nameSplit[nameSplit.length - 1],
-            value: ttiModels[i],
-        });
-    }
+    // Set option list for text to image
     const ttiIndex = CommandObject.options.findIndex((v) => {
         return v.name === "tti";
     });
@@ -171,6 +225,8 @@ async function Execute(
 
     const subcommandData = interaction?.data?.options?.[0];
     switch (subcommandData?.name) {
+        case "chat":
+
         case "itt":
             return await ExecuteITT(env, interaction, subcommandData);
         case "tti":
@@ -182,6 +238,126 @@ async function Execute(
         data: {
             content: "WIP",
             flags: 64,
+        },
+    };
+}
+
+async function ExecuteChat(
+    env: Env,
+    interaction: Interaction,
+    subcommandData: InteractionOption
+): Promise<InteractionResponse> {
+    const options = subcommandData.options || [];
+    const prompt = options[0].value as string;
+    const modelOption = options.find((v) => v.name === "model");
+
+    let modelSelected = modelOption?.value || chatModels[0];
+
+    const res = await env.AI.run(modelSelected, {
+        messages: [
+            {
+                role: "user",
+                content: prompt,
+            },
+        ],
+    });
+
+    return {
+        type: CallbackType.CHANNEL_MESSAGE_WITH_SOURCE,
+        data: {
+            content: res.response || "No response given by AI",
+        },
+    };
+}
+
+async function ExecuteITT(
+    env: Env,
+    interaction: Interaction,
+    subcommandData: InteractionOption
+): Promise<InteractionResponse> {
+    const options = subcommandData.options || [];
+    const prompt = options[0].value as string;
+    const imgdata = options.find((v) => v.name === "image" || v.name === "url");
+    const modelOption = options.find((v) => v.name === "model");
+
+    let modelSelected = modelOption?.value || ittModels[0];
+
+    if (!imgdata) {
+        return {
+            type: CallbackType.CHANNEL_MESSAGE_WITH_SOURCE,
+            data: {
+                content: "An attachment or URL is required!",
+            },
+        };
+    }
+
+    const blobdata = await blobFromOption(imgdata, interaction);
+
+    if (blobdata) {
+        const input = {
+            image: [...new Uint8Array(await blobdata.blob.arrayBuffer())],
+            prompt: prompt,
+            max_tokens: 512,
+        };
+
+        const res = await env.AI.run(modelSelected, input);
+
+        return {
+            type: CallbackType.CHANNEL_MESSAGE_WITH_SOURCE,
+            data: {
+                content: res.description,
+            },
+        };
+    }
+
+    return {
+        type: CallbackType.CHANNEL_MESSAGE_WITH_SOURCE,
+        data: {
+            content: "erm, whar",
+        },
+    };
+}
+
+async function ExecuteTTI(
+    env: Env,
+    interaction: Interaction,
+    subcommandData: InteractionOption
+): Promise<InteractionResponse> {
+    const options = subcommandData.options || [];
+    const prompt = options[0].value as string;
+    const strength = options[1].value as number;
+    const imgdata = options.find((v) => v.name === "image" || v.name === "url");
+    const modelOption = options.find((v) => v.name === "model");
+
+    let modelSelected = modelOption?.value || ttiModels[0];
+
+    const blobdata = await blobFromOption(imgdata, interaction);
+
+    const input: TTIInput = {
+        prompt: prompt,
+        strength: strength,
+    };
+
+    if (blobdata) {
+        input.image = [...new Uint8Array(await blobdata.blob.arrayBuffer())];
+    }
+
+    const res = await env.AI.run(modelSelected, input);
+
+    const buffer = await new Response(res).arrayBuffer();
+
+    const blob = new Blob([buffer], { type: "application/octet-stream" });
+
+    return {
+        type: CallbackType.CHANNEL_MESSAGE_WITH_SOURCE,
+        data: {
+            content: "Done! :3",
+            attachments: [
+                {
+                    blob: blob,
+                    fileName: "media.png",
+                },
+            ],
         },
     };
 }
@@ -240,98 +416,6 @@ async function blobFromOption(
     const blobdata = await BlobFromURL(uri);
 
     return blobdata;
-}
-
-async function ExecuteITT(
-    env: Env,
-    interaction: Interaction,
-    subcommandData: InteractionOption
-): Promise<InteractionResponse> {
-    const options = subcommandData.options || [];
-    const prompt = options[0].value as string;
-    const imgdata = options[1];
-    const modelOption = options.find((v) => v.name === "model");
-
-    let modelSelected = modelOption?.value || ittModels[0];
-
-    if (!imgdata) {
-        return {
-            type: CallbackType.CHANNEL_MESSAGE_WITH_SOURCE,
-            data: {
-                content: "An attachment or URL is required!",
-            },
-        };
-    }
-
-    const blobdata = await blobFromOption(imgdata, interaction);
-
-    if (blobdata) {
-        const input = {
-            image: [...new Uint8Array(await blobdata.blob.arrayBuffer())],
-            prompt: prompt,
-            max_tokens: 512,
-        };
-
-        const res = await env.AI.run(modelSelected, input);
-
-        return {
-            type: CallbackType.CHANNEL_MESSAGE_WITH_SOURCE,
-            data: {
-                content: res.description,
-            },
-        };
-    }
-
-    return {
-        type: CallbackType.CHANNEL_MESSAGE_WITH_SOURCE,
-        data: {
-            content: "erm, whar",
-        },
-    };
-}
-
-async function ExecuteTTI(
-    env: Env,
-    interaction: Interaction,
-    subcommandData: InteractionOption
-): Promise<InteractionResponse> {
-    const options = subcommandData.options || [];
-    const prompt = options[0].value as string;
-    const strength = options[1].value as number;
-    const imgdata = options[2];
-    const modelOption = options.find((v) => v.name === "model");
-
-    let modelSelected = modelOption?.value || ttiModels[0];
-
-    const blobdata = await blobFromOption(imgdata, interaction);
-
-    const input: TTIInput = {
-        prompt: prompt,
-        strength: strength,
-    };
-
-    if (blobdata) {
-        input.image = [...new Uint8Array(await blobdata.blob.arrayBuffer())];
-    }
-
-    const res = await env.AI.run(modelSelected, input);
-
-    const buffer = await new Response(res).arrayBuffer();
-
-    const blob = new Blob([buffer], { type: "application/octet-stream" });
-
-    return {
-        type: CallbackType.CHANNEL_MESSAGE_WITH_SOURCE,
-        data: {
-            content: "Done! :3",
-            attachments: [
-                {
-                    blob: blob,
-                    fileName: "media.png",
-                },
-            ],
-        },
-    };
 }
 
 export { CommandObject, ObjectInit, Execute };

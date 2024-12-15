@@ -69,6 +69,8 @@ export type CommandOption = {
     name: string;
     description: string;
     required?: boolean;
+    min_value?: number;
+    max_value?: number;
     choices?: CommandOptionChoice[];
     options?: CommandOption[];
 };
