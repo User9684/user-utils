@@ -21,8 +21,10 @@ type BlobData = {
 
 type TTIInput = {
     prompt: string;
+    negative_prompt?: string;
     strength: number;
     image?: number[];
+    image_b64?: string;
 };
 
 const chatModels = [
@@ -62,12 +64,16 @@ const CommandObject: Command = {
                     required: true,
                 },
                 {
+                    type: OptionType.STRING,
+                    name: "system",
+                    description: "System prompt to give the AI",
+                },
+                {
                     type: OptionType.NUMBER,
                     name: "temp",
                     description: "Randomness value (higher = more random)",
                     min_value: 0,
                     max_value: 5,
-                    required: false,
                 },
                 {
                     type: OptionType.STRING,
@@ -121,6 +127,11 @@ const CommandObject: Command = {
                     name: "strength",
                     description: "SD strength",
                     required: true,
+                },
+                {
+                    type: OptionType.STRING,
+                    name: "negative_prompt",
+                    description: "Prompt for things to avoid generating",
                 },
                 {
                     type: OptionType.ATTACHMENT,
@@ -257,18 +268,42 @@ async function ExecuteChat(
 ): Promise<InteractionResponse> {
     const options = subcommandData.options || [];
     const prompt = options[0].value as string;
+    const systemPromptOption = options.find((v) => v.name === "system");
+    const tempOption = options.find((v) => v.name === "temp");
     const modelOption = options.find((v) => v.name === "model");
 
     let modelSelected = modelOption?.value || chatModels[0];
 
-    const res = await env.AI.run(modelSelected, {
-        messages: [
+    let messages = [
+        {
+            role: "user",
+            content: prompt,
+        },
+    ];
+    if (systemPromptOption) {
+        messages = [
+            {
+                role: "system",
+                content: <string>systemPromptOption.value,
+            },
             {
                 role: "user",
                 content: prompt,
             },
-        ],
-    });
+        ];
+    }
+    const data: {
+        messages: {}[];
+        temperature?: number;
+    } = {
+        messages,
+    };
+
+    if (tempOption) {
+        data.temperature = <number>tempOption.value;
+    }
+
+    const res = await env.AI.run(modelSelected, data);
 
     return {
         type: CallbackType.CHANNEL_MESSAGE_WITH_SOURCE,
@@ -334,6 +369,7 @@ async function ExecuteTTI(
     const options = subcommandData.options || [];
     const prompt = options[0].value as string;
     const strength = options[1].value as number;
+    const negative_prompt = options.find((v) => v.name === "negative_prompt");
     const imgdata = options.find((v) => v.name === "image" || v.name === "url");
     const modelOption = options.find((v) => v.name === "model");
 
@@ -347,7 +383,11 @@ async function ExecuteTTI(
     };
 
     if (blobdata) {
-        input.image = [...new Uint8Array(await blobdata.blob.arrayBuffer())];
+        //input.image = [...new Uint8Array(await blobdata.blob.arrayBuffer())];
+        input.image_b64 = await blobToBase64(blobdata.blob);
+    }
+    if (negative_prompt) {
+        input.negative_prompt = <string>negative_prompt.value;
     }
 
     const res = await env.AI.run(modelSelected, input);
@@ -393,6 +433,20 @@ async function blobFromOption(
     option: InteractionOption,
     interaction: Interaction
 ): Promise<BlobData | null> {
+    const uri = await mediaUrlFromOption(option, interaction);
+    if (!uri) {
+        return null;
+    }
+
+    const blobdata = await BlobFromURL(uri);
+
+    return blobdata;
+}
+
+async function mediaUrlFromOption(
+    option: InteractionOption,
+    interaction: Interaction
+): Promise<string | null> {
     if (!option) {
         return null;
     }
@@ -421,9 +475,18 @@ async function blobFromOption(
             return null;
     }
 
-    const blobdata = await BlobFromURL(uri);
+    return uri;
+}
 
-    return blobdata;
+async function blobToBase64(blob: Blob): Promise<string> {
+    const buffer = await blob.arrayBuffer();
+    let str = "";
+
+    new Uint8Array(buffer).forEach((byte) => {
+        str += String.fromCharCode(byte);
+    });
+
+    return btoa(str);
 }
 
 export { CommandObject, ObjectInit, Execute };
