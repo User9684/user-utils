@@ -1,7 +1,7 @@
 import { connect } from "cloudflare:sockets";
 
 const ianaWhois = "whois.iana.org";
-const referRegex = /refer:        (.+)/;
+const referRegex = /refer:\s+(.+)/;
 
 async function whoisRequest(query: string, domain: string): Promise<string> {
     const whoisQuery = new TextEncoder().encode(query);
@@ -29,11 +29,15 @@ export async function Whois(query: string): Promise<string | undefined> {
 
     const refer = referRegex.exec(text);
 
-    if (refer.length <= 1) {
+    if (!refer || refer.length <= 1) {
         return text;
     }
 
     const text2 = await whoisRequest(query, refer[1]);
 
     return text2;
+}
+
+export async function ParseWhois(data: string) {
+
 }
