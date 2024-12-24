@@ -64,6 +64,7 @@ async function Execute(
             switch (selectedValue) {
                 case "ns":
                 case "events":
+                case "entities":
                 case "ipinfo":
                     const { embeds, components } =
                         await embedAndComponentsFromRDAP(
