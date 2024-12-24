@@ -216,7 +216,7 @@ export async function embedAndComponentsFromRDAP(
 
                 embedFields.push({
                     name: event.eventAction,
-                    value: `<t:${Date.parse(event.eventDate) / 1000}>`,
+                    value: `<t:${Math.trunc(Date.parse(event.eventDate) / 1000)}>`,
                 });
             }
             break;
