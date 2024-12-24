@@ -216,7 +216,9 @@ export async function embedAndComponentsFromRDAP(
 
                 embedFields.push({
                     name: event.eventAction,
-                    value: `<t:${Math.trunc(Date.parse(event.eventDate) / 1000)}>`,
+                    value: `<t:${Math.trunc(
+                        Date.parse(event.eventDate) / 1000
+                    )}>`,
                 });
             }
             break;
@@ -298,6 +300,12 @@ const CommandObject: Command = {
             description: "Domain to get info for",
             required: true,
         },
+        {
+            type: OptionType.BOOLEAN,
+            name: "skiprdap",
+            description: "Whether or not to skip RDAP and directly check WHOIS",
+            required: false,
+        },
     ],
 };
 
@@ -305,7 +313,9 @@ async function Execute(
     env: Env,
     interaction: Interaction
 ): Promise<InteractionResponse> {
-    const input = interaction?.data?.options?.[0];
+    const options = interaction?.data?.options;
+    const input = options.find((v) => v.name === "domain");
+    const skipRDAP = options.find((v) => v.name === "skiprdap");
     if (!input) {
         return {
             type: CallbackType.CHANNEL_MESSAGE_WITH_SOURCE,
@@ -323,6 +333,38 @@ async function Execute(
         .replace("\r", "")
         .toLowerCase();
 
+    let whoisReason = '(Using WHOIS due to "skiprdap" being TRUE)';
+    let rdapError = ''
+
+    if (!skipRDAP && !(<boolean>skipRDAP?.value)) {
+        const RDAPResponse = await doRDAP(env, query, interaction);
+        if (typeof RDAPResponse === "object") {
+            return RDAPResponse;
+        }
+
+        whoisReason = `(Defaulted to WHOIS due to an error. \`${RDAPResponse}\`)`;
+        rdapError = RDAPResponse
+    }
+
+    const whoisResponse = await doWHOIS(query, whoisReason);
+
+    if (typeof whoisResponse === "object") {
+        return whoisResponse;
+    }
+
+    return {
+        type: CallbackType.CHANNEL_MESSAGE_WITH_SOURCE,
+        data: {
+            content: `Could not find any information for the given query.\nRDAP: \`${rdapError}\`\nWHOIS: \`${whoisResponse}\``,
+        },
+    };
+}
+
+async function doRDAP(
+    env: Env,
+    query: string,
+    interaction: Interaction
+): Promise<InteractionResponse | string> {
     const RDAPResponse = await fetchRDAPData(env, query);
     if (RDAPResponse.success && typeof RDAPResponse.data === "object") {
         await env.MessageQueries.put(
@@ -367,15 +409,24 @@ async function Execute(
         };
     }
 
-    const WhoisResponse = await Whois(input.value.toString());
-    if (WhoisResponse) {
+    return <string>RDAPResponse.data;
+}
+
+async function doWHOIS(
+    input: string,
+    reasonForWHOIS?: string
+): Promise<InteractionResponse | string> {
+    const WhoisResponse = await Whois(input);
+    if (WhoisResponse.success) {
         return {
             type: CallbackType.CHANNEL_MESSAGE_WITH_SOURCE,
             data: {
-                content: `Got a response:tm:!\n(Defaulted to WHOIS due to an error. \`${RDAPResponse.data}\`)`,
+                content: `Got a response:tm:!${
+                    reasonForWHOIS && "\n" + reasonForWHOIS
+                }`,
                 attachments: [
                     {
-                        blob: new Blob([WhoisResponse], {
+                        blob: new Blob([WhoisResponse.response], {
                             type: "text/plain",
                         }),
                         fileName: "Whois_Response.txt",
@@ -385,12 +436,7 @@ async function Execute(
         };
     }
 
-    return {
-        type: CallbackType.CHANNEL_MESSAGE_WITH_SOURCE,
-        data: {
-            content: "Could not find any information for the given query.",
-        },
-    };
+    return WhoisResponse.response;
 }
 
 export { CommandObject, Execute };

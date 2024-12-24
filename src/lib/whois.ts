@@ -3,6 +3,11 @@ import { connect } from "cloudflare:sockets";
 const ianaWhois = "whois.iana.org";
 const referRegex = /refer:\s+(.+)/;
 
+export type WhoisData = {
+    success: boolean;
+    response: string;
+};
+
 async function whoisRequest(query: string, domain: string): Promise<string> {
     const whoisQuery = new TextEncoder().encode(query);
 
@@ -17,27 +22,38 @@ async function whoisRequest(query: string, domain: string): Promise<string> {
     return text;
 }
 
-export async function Whois(query: string): Promise<string | undefined> {
+export async function Whois(query: string): Promise<WhoisData> {
     const text = await whoisRequest(query + "\r\n", ianaWhois);
 
     if (text.includes("This query returned 0 objects")) {
-        return;
+        return {
+            success: false,
+            response:
+                "WHOIS server returned no results. Is this a valid domain?",
+        };
     }
     if (text.includes("Error: Invalid query")) {
-        return;
+        return {
+            success: false,
+            response: "Invalid WHOIS query",
+        };
     }
 
     const refer = referRegex.exec(text);
 
     if (!refer || refer.length <= 1) {
-        return text;
+        return {
+            success: true,
+            response: text,
+        };
     }
 
     const text2 = await whoisRequest(query, refer[1]);
 
-    return text2;
+    return {
+        success: true,
+        response: text2,
+    };
 }
 
-export async function ParseWhois(data: string) {
-
-}
+export async function ParseWhois(data: string) {}
