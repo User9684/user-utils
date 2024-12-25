@@ -1,8 +1,9 @@
 "use strict";
 
-import { embedAndComponentsFromRDAP } from "../commands/whois";
-import { fetchRDAPData } from "../lib/RDAP";
+import { embedAndComponentsFromInfo } from "../commands/whois";
+import { fetchRDAPData, FetchRDAPResponse } from "../lib/RDAP";
 import { DiscordRequest, application_id } from "../lib/discord";
+import { WhoisData, Whois } from "../lib/whois";
 import {
     CallbackType,
     ComponentObject,
@@ -47,9 +48,21 @@ async function Execute(
 
             const message: Message = await messageResp.json();
 
-            const RDAPResponse = await fetchRDAPData(env, query);
-            const { embeds, components } = await embedAndComponentsFromRDAP(
-                RDAPResponse,
+            let dataType: "RDAP" | "WHOIS";
+            let data: FetchRDAPResponse | WhoisData;
+
+            if (interaction.message.embeds[0].title === "RDAP Response") {
+                data = await fetchRDAPData(env, query);
+                dataType = "RDAP";
+            }
+            if (interaction.message.embeds[0].title === "WHOIS Response") {
+                data = await Whois(env, query);
+                dataType = "WHOIS";
+            }
+
+            const { embeds, components } = await embedAndComponentsFromInfo(
+                data,
+                dataType,
                 "entities",
                 Number(message.embeds[0].fields[0].value) +
                     ((interaction.data.custom_id === "whois_next" && 1) || -1),

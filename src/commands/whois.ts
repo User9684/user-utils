@@ -1,6 +1,5 @@
 "use strict";
 
-import { connect } from "cloudflare:sockets";
 import {
     ButtonCompontentType,
     CallbackType,
@@ -20,9 +19,10 @@ import {
     RDAPTypes,
     fetchRDAPData,
     Entity,
+    ParsedRDAP,
 } from "../lib/RDAP";
 import { RandomEmbedColor } from "../lib/discord";
-import { Whois } from "../lib/whois";
+import { Whois, WhoisData } from "../lib/whois";
 
 export async function parseCard(vcard: any[]): Promise<EmbedField> {
     const [name, parameters, type, value] = vcard;
@@ -60,12 +60,16 @@ export async function pagesFromEntities(
     for (const i in entities) {
         const entity = entities[i];
 
-        const page: EmbedField[] = [
-            {
+        console.log(entity);
+
+        const page: EmbedField[] = [];
+        if (entity.roles) {
+            page.push({
                 name: "Role(s)",
                 value: entity.roles.join(", "),
-            },
-        ];
+            });
+        }
+
         for (const ci in entity.vcardArray[1]) {
             const value = entity.vcardArray[1][ci];
             const card = await parseCard(value);
@@ -84,8 +88,9 @@ export async function pagesFromEntities(
     return pages;
 }
 
-export async function embedAndComponentsFromRDAP(
-    RDAPResponse: FetchRDAPResponse,
+export async function embedAndComponentsFromInfo(
+    RDAPResponse: FetchRDAPResponse | WhoisData,
+    dataType: "RDAP" | "WHOIS",
     type: "ns" | "entities" | "events" | "ipinfo",
     page: number,
     footerStr: string
@@ -107,7 +112,7 @@ export async function embedAndComponentsFromRDAP(
         {
             label: "Raw Response",
             value: "raw",
-            description: "Raw RDAP Response",
+            description: `Raw ${dataType} Response`,
         },
     ];
 
@@ -223,14 +228,15 @@ export async function embedAndComponentsFromRDAP(
             }
             break;
         case "ipinfo":
-            if (RDAPResponse.data.rdaptype !== RDAPTypes.IP) {
+            const rdapData = <ParsedRDAP>(<FetchRDAPResponse>RDAPResponse).data;
+            if (rdapData.rdaptype !== RDAPTypes.IP) {
                 break;
             }
 
             const cidrs = [];
 
-            for (const i in RDAPResponse.data.cidr0_cidrs) {
-                const cidr = RDAPResponse.data.cidr0_cidrs[i];
+            for (const i in rdapData.cidr0_cidrs) {
+                const cidr = rdapData.cidr0_cidrs[i];
                 cidrs.push(`${cidr.v6prefix || cidr.v4prefix}/${cidr.length}`);
             }
 
@@ -241,22 +247,16 @@ export async function embedAndComponentsFromRDAP(
                 },
                 {
                     name: "Block Name",
-                    value:
-                        RDAPResponse.data.name ||
-                        "Undefined (RDAP response empty)",
+                    value: rdapData.name || "Undefined (Data Empty)",
                     inline: true,
                 },
                 {
                     name: "Ip Version",
-                    value:
-                        RDAPResponse.data.ipVersion ||
-                        "Undefined (RDAP response empty)",
+                    value: rdapData.ipVersion || "Undefined (Data Empty)",
                 },
                 {
                     name: "Ip Country",
-                    value:
-                        RDAPResponse.data.country ||
-                        "Undefined (RDAP response empty)",
+                    value: rdapData.country || "Undefined (Data Empty)",
                 }
             );
             break;
@@ -274,7 +274,7 @@ export async function embedAndComponentsFromRDAP(
     });
 
     embeds.push({
-        title: "RDAP Response",
+        title: `${dataType} Response`,
         fields: embedFields,
         footer: {
             text: footerStr,
@@ -334,7 +334,7 @@ async function Execute(
         .toLowerCase();
 
     let whoisReason = '(Using WHOIS due to "skiprdap" being TRUE)';
-    let rdapError = ''
+    let rdapError = '"skiprdap" set to TRUE';
 
     if (!skipRDAP && !(<boolean>skipRDAP?.value)) {
         const RDAPResponse = await doRDAP(env, query, interaction);
@@ -343,10 +343,10 @@ async function Execute(
         }
 
         whoisReason = `(Defaulted to WHOIS due to an error. \`${RDAPResponse}\`)`;
-        rdapError = RDAPResponse
+        rdapError = RDAPResponse;
     }
 
-    const whoisResponse = await doWHOIS(query, whoisReason);
+    const whoisResponse = await doWHOIS(env, query, interaction, whoisReason);
 
     if (typeof whoisResponse === "object") {
         return whoisResponse;
@@ -391,8 +391,9 @@ async function doRDAP(
             });
         }
 
-        const { embeds, components } = await embedAndComponentsFromRDAP(
+        const { embeds, components } = await embedAndComponentsFromInfo(
             RDAPResponse,
+            "RDAP",
             (RDAPResponse.data.rdaptype === RDAPTypes.DOMAIN && "ns") ||
                 "ipinfo",
             1,
@@ -413,11 +414,42 @@ async function doRDAP(
 }
 
 async function doWHOIS(
-    input: string,
+    env: Env,
+    query: string,
+    interaction: Interaction,
     reasonForWHOIS?: string
 ): Promise<InteractionResponse | string> {
-    const WhoisResponse = await Whois(input);
+    const WhoisResponse = await Whois(env, query);
+
     if (WhoisResponse.success) {
+        await env.MessageQueries.put(
+            interaction.id,
+            JSON.stringify({
+                token: interaction.token,
+                query: query,
+            }),
+            {
+                expirationTtl: 60 * 8, // 8 minutes
+            }
+        );
+
+        const { embeds, components } = await embedAndComponentsFromInfo(
+            WhoisResponse,
+            "WHOIS",
+            "ns",
+            1,
+            `Data fetched from ${WhoisResponse.whoisServer}`
+        );
+
+        return {
+            type: CallbackType.CHANNEL_MESSAGE_WITH_SOURCE,
+            data: {
+                content: "Got a response:tm:!",
+                embeds: embeds,
+                components: components,
+            },
+        };
+
         return {
             type: CallbackType.CHANNEL_MESSAGE_WITH_SOURCE,
             data: {

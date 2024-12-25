@@ -1,12 +1,13 @@
 "use strict";
 
-import { embedAndComponentsFromRDAP } from "../commands/whois";
-import { fetchRDAPData } from "../lib/RDAP";
+import { embedAndComponentsFromInfo } from "../commands/whois";
+import { fetchRDAPData, FetchRDAPResponse } from "../lib/RDAP";
 import {
     DiscordRequest,
     FormFromPayload,
     application_id,
 } from "../lib/discord";
+import { Whois, WhoisData } from "../lib/whois";
 import {
     CallbackType,
     ComponentObject,
@@ -53,9 +54,19 @@ async function Execute(
 
             const { token, query } = JSON.parse(queryJson);
 
-            const RDAPResponse = await fetchRDAPData(env, query);
+            let dataType: "RDAP" | "WHOIS";
+            let data: FetchRDAPResponse | WhoisData;
 
-            if (typeof RDAPResponse.data !== "object") {
+            if (interaction.message.embeds[0].title === "RDAP Response") {
+                data = await fetchRDAPData(env, query);
+                dataType = "RDAP";
+            }
+            if (interaction.message.embeds[0].title === "WHOIS Response") {
+                data = await Whois(env, query);
+                dataType = "WHOIS";
+            }
+
+            if (typeof data.data !== "object") {
                 return await expireMessage(env, interaction);
             }
 
@@ -67,8 +78,9 @@ async function Execute(
                 case "entities":
                 case "ipinfo":
                     const { embeds, components } =
-                        await embedAndComponentsFromRDAP(
-                            RDAPResponse,
+                        await embedAndComponentsFromInfo(
+                            data,
+                            dataType,
                             selectedValue,
                             1,
                             interaction.message.embeds[0].footer.text
@@ -91,24 +103,21 @@ async function Execute(
 
                     break;
                 case "raw":
+                    let rawData = data.data.raw;
+
+                    if (dataType === "RDAP") {
+                        rawData = JSON.stringify(rawData, null, 4); //pretty json
+                    }
+
                     const followup = await FormFromPayload({
                         type: CallbackType.CHANNEL_MESSAGE_WITH_SOURCE,
                         data: {
                             attachments: [
                                 {
-                                    blob: new Blob(
-                                        [
-                                            JSON.stringify(
-                                                RDAPResponse.data.raw,
-                                                null,
-                                                4
-                                            ),
-                                        ] /* Make the JSON prettier */,
-                                        {
-                                            type: "text/plain",
-                                        }
-                                    ),
-                                    fileName: "RDAP_Response.txt",
+                                    blob: new Blob([rawData], {
+                                        type: "text/plain",
+                                    }),
+                                    fileName: `${dataType}_Response.txt`,
                                 },
                             ],
                         },
