@@ -3,6 +3,7 @@ import { Env } from "../types";
 
 const RDAPDomain = "https://rdap.org/domain/";
 const RDAPIP = "https://rdap.org/ip/";
+const RDAPTLD = "https://rdap.iana.org/domain/"
 
 export enum RDAPTypes {
     IP = "IP",
@@ -221,7 +222,10 @@ async function fetchRDAPData(
     }
 
     try {
-        const domainResponse = await fetch(`${RDAPDomain}${query}`);
+        let domainResponse = await fetch(`${RDAPDomain}${query}`);
+        if (domainResponse.status !== 200) {
+            domainResponse = await fetch(`${RDAPTLD}${query}`);
+        }
         if (domainResponse.status === 200) {
             const jsonData = await domainResponse.text();
 
