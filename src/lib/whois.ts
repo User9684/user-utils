@@ -125,13 +125,11 @@ export async function Whois(env: Env, query: string): Promise<WhoisData> {
         return validWhois2;
     }
 
-    const parsedWhois = await ParseWhois(text2, refer[1]);
-
-    env.WHOISCache.put(query, JSON.stringify(parsedWhois), {
-        expirationTtl: 60 * 8, // 8 minutes
-    });
-
-    return parsedWhois;
+    return {
+        success: true,
+        response: text2,
+        whoisServer: refer[1],
+    };
 }
 
 export async function ParseWhois(

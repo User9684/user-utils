@@ -22,7 +22,7 @@ import {
     ParsedRDAP,
 } from "../lib/RDAP";
 import { RandomEmbedColor } from "../lib/discord";
-import { Whois, WhoisData } from "../lib/whois";
+import { ParseWhois, Whois, WhoisData } from "../lib/whois";
 
 export async function parseCard(vcard: any[]): Promise<EmbedField> {
     const [name, parameters, type, value] = vcard;
@@ -433,39 +433,51 @@ async function doWHOIS(
             }
         );
 
-        const { embeds, components } = await embedAndComponentsFromInfo(
-            WhoisResponse,
-            "WHOIS",
-            "ns",
-            1,
-            `Data fetched from ${WhoisResponse.whoisServer}`
-        );
+        try {
+            const parsedWhois = await ParseWhois(
+                WhoisResponse.response,
+                WhoisResponse.whoisServer
+            );
 
-        return {
-            type: CallbackType.CHANNEL_MESSAGE_WITH_SOURCE,
-            data: {
-                content: "Got a response:tm:!",
-                embeds: embeds,
-                components: components,
-            },
-        };
+            // PUT whois into cache
+            env.WHOISCache.put(query, JSON.stringify(parsedWhois), {
+                expirationTtl: 60 * 8, // 8 minutes
+            });
 
-        return {
-            type: CallbackType.CHANNEL_MESSAGE_WITH_SOURCE,
-            data: {
-                content: `Got a response:tm:!${
-                    reasonForWHOIS && "\n" + reasonForWHOIS
-                }`,
-                attachments: [
-                    {
-                        blob: new Blob([WhoisResponse.response], {
-                            type: "text/plain",
-                        }),
-                        fileName: "Whois_Response.txt",
-                    },
-                ],
-            },
-        };
+
+            const { embeds, components } = await embedAndComponentsFromInfo(
+                WhoisResponse,
+                "WHOIS",
+                "ns",
+                1,
+                `Data fetched from ${WhoisResponse.whoisServer}`
+            );
+            return {
+                type: CallbackType.CHANNEL_MESSAGE_WITH_SOURCE,
+                data: {
+                    content: "Got a response:tm:!",
+                    embeds: embeds,
+                    components: components,
+                },
+            };
+        } catch (e) {
+            return {
+                type: CallbackType.CHANNEL_MESSAGE_WITH_SOURCE,
+                data: {
+                    content: `Got a response:tm:!${
+                        reasonForWHOIS && "\n" + reasonForWHOIS
+                    }\n(Using raw response due to WHOIS library error. \`${e}\`)`,
+                    attachments: [
+                        {
+                            blob: new Blob([WhoisResponse.response], {
+                                type: "text/plain",
+                            }),
+                            fileName: "Whois_Response.txt",
+                        },
+                    ],
+                },
+            };
+        }
     }
 
     return WhoisResponse.response;
