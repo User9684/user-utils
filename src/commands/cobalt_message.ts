@@ -1,4 +1,3 @@
-"use strict";
 
 import { Command, Command_Type } from "../types";
 import { Execute } from "./cobalt";

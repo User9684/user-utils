@@ -1,4 +1,3 @@
-"use strict";
 import { BotCommand, BotComponent, Env } from "./types";
 
 import * as refresh from "./commands/refreshcommands";

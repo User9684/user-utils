@@ -1,4 +1,3 @@
-"use strict";
 
 import { embedAndComponentsFromInfo } from "../commands/whois";
 import { fetchRDAPData, FetchRDAPResponse } from "../lib/RDAP";

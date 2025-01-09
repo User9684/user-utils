@@ -1,4 +1,3 @@
-"use strict";
 
 import { Command, Env } from "./types";
 import { commands } from "./commands";

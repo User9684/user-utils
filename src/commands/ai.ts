@@ -1,4 +1,3 @@
-"use strict";
 
 import { isWhitelisted } from "../commands";
 import {

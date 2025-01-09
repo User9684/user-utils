@@ -1,4 +1,3 @@
-"use strict";
 
 export type Env = {
     PUBLIC_KEY: string;
