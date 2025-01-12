@@ -72,8 +72,7 @@ const CommandObject: Command = {
         {
             type: OptionType.SUB_COMMAND,
             name: "chat",
-            description:
-                "Send a message to an LLM!",
+            description: "Send a message to an LLM!",
             options: [
                 {
                     type: OptionType.STRING,
@@ -334,12 +333,6 @@ export async function ExecuteChat(
     let modelOption = options.find((v) => v.name === "model");
     let finetuneOption = options.find((v) => v.name === "finetune");
 
-    const messages = [
-        {
-            role: "user",
-            content: prompt,
-        },
-    ];
     const data: {
         messages: {}[];
         prompt?: string;
@@ -347,7 +340,12 @@ export async function ExecuteChat(
         raw?: boolean;
         lora?: string;
     } = {
-        messages,
+        messages: [
+            {
+                role: "user",
+                content: prompt,
+            },
+        ],
     };
     let chatData: ChatData;
 
@@ -413,12 +411,11 @@ export async function ExecuteChat(
     }
 
     if (systemPromptOption) {
-        messages.unshift({
+        data.messages.unshift({
             role: "system",
             content: <string>systemPromptOption.value,
         });
         chatData.system = <string>systemPromptOption.value;
-        data.messages = messages;
     }
 
     if (tempOption) {
