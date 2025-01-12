@@ -1,4 +1,4 @@
-import { BotCommand, BotComponent, Env } from "./types";
+import { BotCommand, BotComponent, BotModal, Env } from "./types";
 
 import * as refresh from "./commands/refreshcommands";
 import * as webhook from "./commands/webhook";
@@ -12,6 +12,8 @@ import * as whitelist from "./commands/whitelist";
 import * as ai from "./commands/ai";
 import * as whois_select_menu from "./components/whois_select_menu";
 import * as whois_next from "./components/whois_next";
+import * as ai_chat_reply from "./components/ai_reply";
+import * as ai_chat_reply_modal from "./modals/ai_reply";
 
 export const commands: { [id: string]: BotCommand } = {
     refresh,
@@ -30,6 +32,11 @@ export const components: { [id: string]: BotComponent } = {
     whois_select_menu,
     whois_next,
     whois_previous: whois_next,
+    ai_chat_reply,
+};
+
+export const modals: { [id: string]: BotModal } = {
+    ai_chat_reply_modal,
 };
 
 export async function isWhitelisted(

@@ -1,11 +1,12 @@
-
 import { isWhitelisted } from "../commands";
 import {
     Attachment,
+    ButtonCompontentType,
     CallbackType,
     Command,
     CommandOption,
     CommandOptionChoice,
+    ComponentType,
     Env,
     Interaction,
     InteractionOption,
@@ -26,14 +27,32 @@ type TTIInput = {
     image_b64?: string;
 };
 
+type FinetunesResponse = {
+    success: boolean;
+    result: {
+        id: string;
+        model: string;
+        name: string;
+        description: string;
+    }[];
+};
+
+type ChatData = {
+    context: { role: string; content: string }[];
+    model: string;
+    system?: string;
+    temp?: number;
+    finetune?: string;
+};
+
 const chatModels = [
-    "@hf/thebloke/llama-2-13b-chat-awq",
+    "@cf/qwen/qwen1.5-7b-chat-awq",
     "@hf/nousresearch/hermes-2-pro-mistral-7b",
     "@cf/deepseek-ai/deepseek-math-7b-instruct",
     "@hf/google/gemma-7b-it",
     "@hf/mistral/mistral-7b-instruct-v0.2",
+    "@hf/thebloke/llama-2-13b-chat-awq",
     "@hf/nexusflow/starling-lm-7b-beta",
-    "@cf/qwen/qwen1.5-7b-chat-awq",
 ];
 const ittModels = [
     "@cf/unum/uform-gen2-qwen-500m",
@@ -54,7 +73,7 @@ const CommandObject: Command = {
             type: OptionType.SUB_COMMAND,
             name: "chat",
             description:
-                "Send a message to an LLM! (No chat history currently)",
+                "Send a message to an LLM!",
             options: [
                 {
                     type: OptionType.STRING,
@@ -78,6 +97,12 @@ const CommandObject: Command = {
                     type: OptionType.STRING,
                     name: "model",
                     description: "AI model to use",
+                },
+                {
+                    type: OptionType.STRING,
+                    name: "finetune",
+                    description:
+                        "Fine tuned model to use (ignores model choice)",
                 },
             ],
         },
@@ -154,9 +179,25 @@ const CommandObject: Command = {
     contexts: ["0", "1", "2"],
 };
 
+async function ListFineTunes(env: Env) {
+    const response = await fetch(
+        `https://api.cloudflare.com/client/v4/accounts/${env.CLOUDFLARE_ACCOUNT_ID}/ai/finetunes/`,
+        {
+            headers: {
+                Authorization: `Bearer ${env.CLOUDFLARE_API_TOKEN_AI}`,
+            },
+        }
+    );
+
+    const body: FinetunesResponse = await response.json();
+
+    return body.result;
+}
+
 async function ObjectInit(env: Env): Promise<Command> {
     // Initialize option lists
     const chatOptions: CommandOptionChoice[] = [];
+    const fineTunesOptions: CommandOptionChoice[] = [];
     const ittOptions: CommandOptionChoice[] = [];
     const ttiOptions: CommandOptionChoice[] = [];
 
@@ -221,6 +262,24 @@ async function ObjectInit(env: Env): Promise<Command> {
     CommandObject.options[ttiIndex].options[ttiModelsIndex].choices =
         ttiOptions;
 
+    // Set fine-tune list for chat
+    const finetunes = await ListFineTunes(env);
+    for (const i in finetunes) {
+        const finetune = finetunes[i];
+
+        fineTunesOptions.push({
+            name: finetune.name,
+            value: finetune.name,
+        });
+    }
+    const finetunesIndex = CommandObject.options[chatIndex].options.findIndex(
+        (v) => {
+            return v.name === "finetune";
+        }
+    );
+    CommandObject.options[chatIndex].options[finetunesIndex].choices =
+        fineTunesOptions;
+
     return CommandObject;
 }
 
@@ -244,7 +303,7 @@ async function Execute(
     const subcommandData = interaction?.data?.options?.[0];
     switch (subcommandData?.name) {
         case "chat":
-            return await ExecuteChat(env, interaction, subcommandData);
+            return await ExecuteChat(env, interaction, subcommandData, true);
         case "itt":
             return await ExecuteITT(env, interaction, subcommandData);
         case "tti":
@@ -256,58 +315,176 @@ async function Execute(
         data: {
             content: "WIP",
             flags: 64,
-        }, 
+        },
     };
 }
 
-async function ExecuteChat(
+export async function ExecuteChat(
     env: Env,
     interaction: Interaction,
-    subcommandData: InteractionOption
+    subcommandData: InteractionOption,
+    freshConversation: boolean
 ): Promise<InteractionResponse> {
+    let chatID = "";
+
     const options = subcommandData.options || [];
-    const prompt = options[0].value as string;
-    const systemPromptOption = options.find((v) => v.name === "system");
-    const tempOption = options.find((v) => v.name === "temp");
-    const modelOption = options.find((v) => v.name === "model");
+    const prompt = <string>options[0].value;
+    let systemPromptOption = options.find((v) => v.name === "system");
+    let tempOption = options.find((v) => v.name === "temp");
+    let modelOption = options.find((v) => v.name === "model");
+    let finetuneOption = options.find((v) => v.name === "finetune");
 
-    let modelSelected = modelOption?.value || chatModels[0];
-
-    let messages = [
+    const messages = [
         {
             role: "user",
             content: prompt,
         },
     ];
+    const data: {
+        messages: {}[];
+        prompt?: string;
+        temperature?: number;
+        raw?: boolean;
+        lora?: string;
+    } = {
+        messages,
+    };
+    let chatData: ChatData;
+
+    if (!freshConversation) {
+        chatID = [
+            ...interaction.data.custom_id.match(/ai_reply_([a-z0-9]+)/i),
+        ][1];
+
+        const chatDataStr = await env.ai_history.get(chatID);
+        if (chatDataStr == null) {
+            return {
+                type: CallbackType.CHANNEL_MESSAGE_WITH_SOURCE,
+                data: {
+                    content: "This conversation has expired.",
+                },
+            };
+        }
+
+        chatData = JSON.parse(chatDataStr);
+        systemPromptOption =
+            (chatData.system && {
+                name: "",
+                value: chatData.system,
+                type: OptionType.STRING,
+            }) ||
+            null;
+        tempOption =
+            (chatData.temp && {
+                name: "",
+                value: chatData.temp,
+                type: OptionType.NUMBER,
+            }) ||
+            null;
+        modelOption =
+            (chatData.model && {
+                name: "",
+                value: chatData.model,
+                type: OptionType.STRING,
+            }) ||
+            null;
+        finetuneOption =
+            (chatData.finetune && {
+                name: "",
+                value: chatData.finetune,
+                type: OptionType.STRING,
+            }) ||
+            null;
+
+        if (chatData.context.length > 0) {
+            data.messages = chatData.context;
+            data.prompt = prompt;
+        }
+    }
+
+    let modelSelected = <string>modelOption?.value || chatModels[0];
+
+    if (freshConversation) {
+        chatID = interaction.id;
+        chatData = {
+            context: [],
+            model: modelSelected,
+        };
+    }
+
     if (systemPromptOption) {
-        messages = [
-            {
-                role: "system",
-                content: <string>systemPromptOption.value,
-            },
+        messages.unshift({
+            role: "system",
+            content: <string>systemPromptOption.value,
+        });
+        chatData.system = <string>systemPromptOption.value;
+        data.messages = messages;
+    }
+
+    if (tempOption) {
+        data.temperature = <number>tempOption.value;
+        chatData.temp = <number>tempOption.value;
+    }
+
+    if (finetuneOption) {
+        const finetuneList = await ListFineTunes(env);
+        const selectedFineTune = finetuneList.find(
+            (f) => f.name == finetuneOption.value
+        );
+
+        modelSelected = selectedFineTune.model;
+        data.raw = true;
+        data.lora = selectedFineTune.id;
+        chatData.finetune = <string>finetuneOption.value;
+    }
+
+    console.log(data);
+
+    const res = await env.AI.run(modelSelected, data);
+
+    if (res.response) {
+        chatData.context.push(
             {
                 role: "user",
                 content: prompt,
             },
-        ];
-    }
-    const data: {
-        messages: {}[];
-        temperature?: number;
-    } = {
-        messages,
-    };
-
-    if (tempOption) {
-        data.temperature = <number>tempOption.value;
+            {
+                role: "assistant",
+                content: res,
+            }
+        );
+        env.ai_history.put(chatID, JSON.stringify(chatData), {
+            expirationTtl: 60 * 5, // 5 minutes, keep chatting or convo gone.
+        });
     }
 
-    const res = await env.AI.run(modelSelected, data);
+    if (!res.response) {
+        console.log(res);
+    }
+
+    let aiResponse = res.response || "No response given by AI";
+
+    if (!freshConversation) {
+        aiResponse = `> ${prompt}\n${aiResponse}`;
+    }
 
     return {
         type: CallbackType.CHANNEL_MESSAGE_WITH_SOURCE,
         data: {
-            content: res.response || "No response given by AI",
+            content: aiResponse,
+            components: [
+                {
+                    type: ComponentType.ActionRow,
+                    components: [
+                        {
+                            type: ComponentType.Button,
+                            label: "reply",
+                            custom_id: `ai_start_reply_${chatID}`,
+                            style: ButtonCompontentType.Primary,
+                        },
+                    ],
+                },
+            ],
         },
     };
 }

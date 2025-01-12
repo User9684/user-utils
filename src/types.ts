@@ -1,4 +1,3 @@
-
 export type Env = {
     PUBLIC_KEY: string;
     TOKEN: string;
@@ -13,7 +12,10 @@ export type Env = {
     WHOISCache: KVNamespace;
     MessageQueries: KVNamespace;
     CommandWhitelist: KVNamespace;
+    ai_history: KVNamespace;
     INTERACTION_DEBUG: boolean;
+    CLOUDFLARE_ACCOUNT_ID: string;
+    CLOUDFLARE_API_TOKEN_AI: string;
 };
 
 export type Ctx = EventContext<Env, any, any>;
@@ -193,6 +195,11 @@ export enum ButtonCompontentType {
     Premium,
 }
 
+export enum TextInputType {
+    Short = 1,
+    Paragraph = 2,
+}
+
 export type ButtonCompontent = {
     type: ComponentType.Button;
     style: ButtonCompontentType;
@@ -223,11 +230,29 @@ export type SelectMenuComponent = {
     disabled?: boolean;
 };
 
-export type Component = RowComponent | ButtonCompontent | SelectMenuComponent;
+export type TextInputComponent = {
+    type: ComponentType;
+    custom_id: string;
+    style: TextInputType;
+    label: string;
+    min_length?: number;
+    max_length?: number;
+    required?: boolean;
+    value?: string;
+    placeholder?: string;
+};
+
+export type Component =
+    | RowComponent
+    | ButtonCompontent
+    | SelectMenuComponent
+    | TextInputComponent;
 
 export type InteractionCallback = {
     tts?: boolean;
     content?: string;
+    custom_id?: string;
+    title?: string;
     embeds?: Embed[];
     allowed_mentions?: {};
     flags?: number;
@@ -250,6 +275,7 @@ export type InteractionData = {
     name: string;
     type: Command_Type;
     resolved?: InteractionResolvedData;
+    components?: Component[];
     options?: InteractionOption[];
     guild_id?: string;
     target_id?: string;
@@ -263,7 +289,7 @@ export type InteractionOption = {
     type: number;
     value: string | number | boolean;
     options?: InteractionOption[];
-    focused: boolean;
+    focused?: boolean;
 };
 
 export type InteractionMetadata = {
@@ -331,10 +357,21 @@ export type InteractionResponse = {
 };
 
 export type ComponentObject = {
-    custom_id: string;
+    custom_id: string | RegExp;
+};
+
+export type BotModal = {
+    instant_execution?: boolean,
+    ModalObject: ComponentObject;
+    Execute: (
+        env: Env,
+        interaction: Interaction,
+        ctx: Ctx
+    ) => Promise<InteractionResponse>;
 };
 
 export type BotComponent = {
+    instant_execution?: boolean,
     ComponentObject: ComponentObject;
     Execute: (
         env: Env,
@@ -344,6 +381,7 @@ export type BotComponent = {
 };
 
 export type BotCommand = {
+    instant_execution?: boolean,
     CommandObject: Command;
     Execute: (
         env: Env,

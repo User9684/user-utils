@@ -1,4 +1,3 @@
-
 import {
     CallbackType,
     Ctx,
@@ -14,40 +13,65 @@ import {
     VerifyRequest,
     application_id,
 } from "./lib/discord";
-import { commands, components } from "./commands";
+import { commands, components, modals } from "./commands";
 
+function commandFromInteraction(interaction: Interaction) {
+    let cmd =
+        (interaction.type === InteractionType.APPLICATION_COMMAND &&
+            commands[interaction.data.name]) ||
+        (interaction.type === InteractionType.MESSAGE_COMPONENT &&
+            components[interaction.data.custom_id]) ||
+        (interaction.type === InteractionType.MODAL_SUBMIT &&
+            modals[interaction.data.custom_id]);
+
+    // this is the single handedly worst logic ive every written in my life
+    if (
+        !cmd &&
+        (interaction.type == InteractionType.MESSAGE_COMPONENT ||
+            interaction.type == InteractionType.MODAL_SUBMIT)
+    ) {
+        for (const id in components) {
+            const component = components[id];
+            if (
+                component.ComponentObject.custom_id instanceof RegExp &&
+                interaction.data.custom_id.match(
+                    component.ComponentObject.custom_id
+                )
+            ) {
+                cmd = component;
+                break;
+            }
+        }
+
+        for (const id in modals) {
+            const modal = modals[id];
+            if (
+                modal.ModalObject.custom_id instanceof RegExp &&
+                interaction.data.custom_id.match(modal.ModalObject.custom_id)
+            ) {
+                cmd = modal;
+                break;
+            }
+        }
+    }
+
+    return cmd;
+}
+
+// NOT EVEN GOD KNOWS HOW THIS WORKS.
 async function handleInteraction(
     interaction: Interaction,
     env: Env,
     ctx: Ctx
 ): Promise<InteractionResponse> {
+    const cmd = commandFromInteraction(interaction);
+
     switch (interaction.type) {
+        case InteractionType.MODAL_SUBMIT:
         case InteractionType.MESSAGE_COMPONENT:
         case InteractionType.APPLICATION_COMMAND ||
             InteractionType.MESSAGE_COMPONENT:
             try {
-                const cmd =
-                    (interaction.type === InteractionType.APPLICATION_COMMAND &&
-                        commands[interaction.data.name]) ||
-                    components[interaction.data.custom_id];
-
-                if (!cmd) {
-                    return {
-                        type: CallbackType.CHANNEL_MESSAGE_WITH_SOURCE,
-                        data: {
-                            content: `No ${
-                                (interaction.type ===
-                                    InteractionType.APPLICATION_COMMAND &&
-                                    "command") ||
-                                "component code"
-                            } found for \`${
-                                interaction.data.name ||
-                                interaction.data.custom_id
-                            }\``,
-                            flags: 64,
-                        },
-                    };
-                }
                 const commandResponse = await cmd.Execute(
                     env,
                     interaction,
@@ -56,6 +80,7 @@ async function handleInteraction(
 
                 return commandResponse;
             } catch (err) {
+                console.log(err);
                 const response: InteractionResponse = {
                     type: CallbackType.CHANNEL_MESSAGE_WITH_SOURCE,
                     data: {
@@ -134,6 +159,14 @@ export default {
                     requestBody.id
                 }\nArgs: ${optionsStr}`
             );
+        }
+
+        const foundCommand = commandFromInteraction(requestBody);
+
+        if (foundCommand && foundCommand.instant_execution) {
+            const response = await handleInteraction(requestBody, env, ctx);
+
+            return Response.json(response);
         }
 
         ctx.waitUntil(
