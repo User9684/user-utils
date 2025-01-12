@@ -4,7 +4,6 @@ import {
     ButtonCompontentType,
     CallbackType,
     Command,
-    CommandOption,
     CommandOptionChoice,
     ComponentType,
     Env,
@@ -37,7 +36,7 @@ type FinetunesResponse = {
     }[];
 };
 
-type ChatData = {
+export type ChatData = {
     context: { role: string; content: string }[];
     model: string;
     system?: string;
@@ -475,8 +474,14 @@ export async function ExecuteChat(
                     components: [
                         {
                             type: ComponentType.Button,
-                            label: "reply",
+                            label: "Reply",
                             custom_id: `ai_start_reply_${chatID}`,
+                            style: ButtonCompontentType.Primary,
+                        },
+                        {
+                            type: ComponentType.Button,
+                            label: "View History",
+                            custom_id: `ai_chat_history_${chatID}`,
                             style: ButtonCompontentType.Primary,
                         },
                     ],

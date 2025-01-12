@@ -13,6 +13,7 @@ import * as ai from "./commands/ai";
 import * as whois_select_menu from "./components/whois_select_menu";
 import * as whois_next from "./components/whois_next";
 import * as ai_chat_reply from "./components/ai_reply";
+import * as ai_chat_history from "./components/ai_history"
 import * as ai_chat_reply_modal from "./modals/ai_reply";
 
 export const commands: { [id: string]: BotCommand } = {
@@ -33,6 +34,7 @@ export const components: { [id: string]: BotComponent } = {
     whois_next,
     whois_previous: whois_next,
     ai_chat_reply,
+    ai_chat_history,
 };
 
 export const modals: { [id: string]: BotModal } = {
