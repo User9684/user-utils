@@ -52,6 +52,8 @@ const chatModels = [
     "@hf/mistral/mistral-7b-instruct-v0.2",
     "@hf/thebloke/llama-2-13b-chat-awq",
     "@hf/nexusflow/starling-lm-7b-beta",
+    "@cf/fblgit/una-cybertron-7b-v2-bf16",
+    "@cf/deepseek-ai/deepseek-math-7b-instruct",
 ];
 const ittModels = [
     "@cf/unum/uform-gen2-qwen-500m",
