@@ -62,6 +62,7 @@ const ttiModels = [
     "@cf/bytedance/stable-diffusion-xl-lightning",
     "@cf/runwayml/stable-diffusion-v1-5-img2img",
     "@cf/runwayml/stable-diffusion-v1-5-inpainting",
+    "@cf/lykon/dreamshaper-8-lcm",
 ];
 
 const CommandObject: Command = {
