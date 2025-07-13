@@ -397,8 +397,12 @@ export async function ExecuteChat(
             null;
 
         if (chatData.context.length > 0) {
-            data.messages = chatData.context;
+            chatData.context.push({
+                role: "user",
+                content: prompt,
+            })
             data.prompt = prompt;
+            data.messages = chatData.context;
         }
     }
 
@@ -441,12 +445,17 @@ export async function ExecuteChat(
 
     const res = await env.AI.run(modelSelected, data);
 
-    if (res.response) {
+    if (chatData.context.length <= 0) {
         chatData.context.push(
             {
                 role: "user",
                 content: prompt,
-            },
+            }
+        )
+    }
+
+    if (res.response) {
+        chatData.context.push(
             {
                 role: "assistant",
                 content: res,
