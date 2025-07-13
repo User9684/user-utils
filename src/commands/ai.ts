@@ -66,6 +66,7 @@ const ttiModels = [
     "@cf/runwayml/stable-diffusion-v1-5-inpainting",
     "@cf/lykon/dreamshaper-8-lcm",
 ];
+const summaryModels = ["@cf/facebook/bart-large-cnn"];
 
 const CommandObject: Command = {
     name: "ai",
@@ -104,6 +105,24 @@ const CommandObject: Command = {
                     name: "finetune",
                     description:
                         "Fine tuned model to use (ignores model choice)",
+                },
+            ],
+        },
+        {
+            type: OptionType.SUB_COMMAND,
+            name: "summary",
+            description: "AI generated summaries",
+            options: [
+                {
+                    type: OptionType.STRING,
+                    name: "text",
+                    description: "Text to summarize",
+                    required: true,
+                },
+                {
+                    type: OptionType.STRING,
+                    name: "model",
+                    description: "AI model to use",
                 },
             ],
         },
@@ -199,6 +218,7 @@ async function ObjectInit(env: Env): Promise<Command> {
     // Initialize option lists
     const chatOptions: CommandOptionChoice[] = [];
     const fineTunesOptions: CommandOptionChoice[] = [];
+    const summaryOptions: CommandOptionChoice[] = [];
     const ittOptions: CommandOptionChoice[] = [];
     const ttiOptions: CommandOptionChoice[] = [];
 
@@ -208,6 +228,14 @@ async function ObjectInit(env: Env): Promise<Command> {
         chatOptions.push({
             name: nameSplit[nameSplit.length - 1],
             value: chatModels[i],
+        });
+    }
+    // Set summary model choices
+    for (const i in summaryModels) {
+        const nameSplit = summaryModels[i].split("/");
+        summaryOptions.push({
+            name: nameSplit[nameSplit.length - 1],
+            value: summaryModels[i],
         });
     }
     // Set image-to-text model choices
@@ -238,6 +266,18 @@ async function ObjectInit(env: Env): Promise<Command> {
     );
     CommandObject.options[chatIndex].options[chatModelsIndex].choices =
         chatOptions;
+
+    // Set option list for summary
+    const summaryIndex = CommandObject.options.findIndex((v) => {
+        return v.name === "summary";
+    });
+    const summaryModelsIndex = CommandObject.options[
+        summaryIndex
+    ].options.findIndex((v) => {
+        return v.name === "model";
+    });
+    CommandObject.options[summaryIndex].options[summaryModelsIndex].choices =
+        summaryOptions;
 
     // Set option list for image to text
     const ittIndex = CommandObject.options.findIndex((v) => {
@@ -305,6 +345,8 @@ async function Execute(
     switch (subcommandData?.name) {
         case "chat":
             return await ExecuteChat(env, interaction, subcommandData, true);
+        case "summary":
+            return await ExecuteSummary(env, interaction, subcommandData);
         case "itt":
             return await ExecuteITT(env, interaction, subcommandData);
         case "tti":
@@ -341,6 +383,7 @@ export async function ExecuteChat(
         temperature?: number;
         raw?: boolean;
         lora?: string;
+        max_tokens?: number;
     } = {
         messages: [
             {
@@ -348,6 +391,7 @@ export async function ExecuteChat(
                 content: prompt,
             },
         ],
+        max_tokens: 512,
     };
     let chatData: ChatData;
 
@@ -400,7 +444,7 @@ export async function ExecuteChat(
             chatData.context.push({
                 role: "user",
                 content: prompt,
-            })
+            });
             data.prompt = prompt;
             data.messages = chatData.context;
         }
@@ -416,7 +460,11 @@ export async function ExecuteChat(
         };
     }
 
-    if (systemPromptOption) {
+    const systemExists = data.messages.find(
+        (data: any) => data.role == "system"
+    );
+
+    if (systemPromptOption && !systemExists) {
         data.messages.unshift({
             role: "system",
             content: <string>systemPromptOption.value,
@@ -446,34 +494,70 @@ export async function ExecuteChat(
     const res = await env.AI.run(modelSelected, data);
 
     if (chatData.context.length <= 0) {
-        chatData.context.push(
-            {
-                role: "user",
-                content: prompt,
-            }
-        )
+        chatData.context.push({
+            role: "user",
+            content: prompt,
+        });
     }
 
     if (res.response) {
-        chatData.context.push(
-            {
-                role: "assistant",
-                content: res,
-            }
-        );
+        chatData.context.push({
+            role: "assistant",
+            content: res,
+        });
         env.ai_history.put(chatID, JSON.stringify(chatData), {
             expirationTtl: 60 * 5, // 5 minutes, keep chatting or convo gone.
         });
     }
 
-    if (!res.response) {
-        console.log(res);
+    let aiResponse: string = res.response || "No response given by AI";
+
+    if (!aiResponse || typeof aiResponse !== "string") {
+        console.log("Response type was not a string.");
     }
 
-    let aiResponse = res.response || "No response given by AI";
+    console.log(res);
 
     if (!freshConversation) {
         aiResponse = `> ${prompt}\n${aiResponse}`;
+    }
+
+    const responseData: any = {
+        type: CallbackType.CHANNEL_MESSAGE_WITH_SOURCE,
+        data: {
+            components: [
+                {
+                    type: ComponentType.ActionRow,
+                    components: [
+                        {
+                            type: ComponentType.Button,
+                            label: "Reply",
+                            custom_id: `ai_start_reply_${chatID}`,
+                            style: ButtonCompontentType.Primary,
+                        },
+                        {
+                            type: ComponentType.Button,
+                            label: "View History",
+                            custom_id: `ai_chat_history_${chatID}`,
+                            style: ButtonCompontentType.Primary,
+                        },
+                    ],
+                },
+            ],
+        },
+    };
+
+    if (aiResponse.length > 2000) {
+        responseData.data.attachments = [
+            {
+                blob: new Blob([await new Response(aiResponse).arrayBuffer()], {
+                    type: "application/octet-stream",
+                }),
+                fileName: "message.txt",
+            },
+        ];
+    } else {
+        responseData.data.content = aiResponse;
     }
 
     return {
@@ -495,6 +579,52 @@ export async function ExecuteChat(
                             label: "View History",
                             custom_id: `ai_chat_history_${chatID}`,
                             style: ButtonCompontentType.Primary,
+                        },
+                    ],
+                },
+            ],
+        },
+    };
+}
+
+export async function ExecuteSummary(
+    env: Env,
+    interaction: Interaction,
+    subcommandData: InteractionOption
+): Promise<InteractionResponse> {
+    const options = subcommandData.options || [];
+    const prompt = <string>options[0].value;
+    const modelOption = options.find((v) => v.name === "model");
+
+    const modelSelected = modelOption?.value || summaryModels[0];
+
+    const input = {
+        input_text: prompt,
+    };
+
+    const startTime = Date.now();
+    const res = await env.AI.run(modelSelected, input);
+    const endTime = Date.now();
+
+    return {
+        type: CallbackType.CHANNEL_MESSAGE_WITH_SOURCE,
+        data: {
+            content: res.summary,
+            allowed_mentions: {
+                parse: [],
+            },
+            components: [
+                {
+                    type: ComponentType.ActionRow,
+                    components: [
+                        {
+                            type: ComponentType.Button,
+                            label: `Response Time: ${
+                                (endTime - startTime) / 1000
+                            }s`,
+                            custom_id: `unused`,
+                            style: ButtonCompontentType.Secondary,
+                            disabled: true,
                         },
                     ],
                 },

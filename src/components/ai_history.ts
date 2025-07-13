@@ -115,4 +115,5 @@ async function Execute(
     };
 }
 
+export const instant_execution = true;
 export { ComponentObject, Execute };
