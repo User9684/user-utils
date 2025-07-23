@@ -41,77 +41,92 @@ async function Execute(
 
     const chatDataStr = await env.ai_history.get(chat_id);
     if (!chatDataStr) {
-        const followup = await FormFromPayload({
-            type: CallbackType.CHANNEL_MESSAGE_WITH_SOURCE,
-            data: {
-                content: "This conversation has expired.",
-            },
-        });
-        await DiscordRequest(
-            env,
-            `/webhooks/${application_id(env)}/${interaction.token}`,
-            "POST",
-            followup
+        ctx.waitUntil(
+            (async () => {
+                const followup = await FormFromPayload({
+                    type: CallbackType.CHANNEL_MESSAGE_WITH_SOURCE,
+                    data: {
+                        content: "This conversation has expired.",
+                    },
+                });
+
+                await DiscordRequest(
+                    env,
+                    `/webhooks/${application_id(env)}/${interaction.token}`,
+                    "POST",
+                    followup
+                );
+            })()
         );
 
         return {
-            type: CallbackType.IGNORE,
-            data: {},
+            type: CallbackType.DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE,
+            data: {
+                flags: 64,
+            },
         };
     }
-    const chatData = JSON.parse(chatDataStr);
 
-    let contextOutput = "";
+    ctx.waitUntil(
+        (async () => {
+            const chatData = JSON.parse(chatDataStr);
 
-    let previous = null;
-    for (const message of chatData.context) {
-        if (message.role === "system") {
-            continue;
-        }
+            let contextOutput = "";
 
-        if (previous === null) {
-            previous = message;
-        } else {
-            contextOutput +=
-                `${previous.content} -> ${message.content.response}`.replaceAll(
-                    "\n",
-                    "\\n"
-                ) + "\n";
-            previous = null;
-        }
-    }
+            let previous = null;
+            for (const message of chatData.context) {
+                if (message.role === "system") {
+                    continue;
+                }
 
-    const formattedStr = `#### BEGIN SETTINGS ####\nModel: ${
-        chatData.model
-    }\nFine-tune name: ${chatData.finetune || "none"}\nTemperature: ${
-        chatData.temp || 1
-    }\nSystem prompt: ${
-        chatData.system || "none"
-    }\n\n#### BEGIN HISTORY ####\n${contextOutput}`;
+                if (previous === null) {
+                    previous = message;
+                } else {
+                    contextOutput +=
+                        `${previous.content} -> ${message.content.response}`.replaceAll(
+                            "\n",
+                            "\\n"
+                        ) + "\n";
+                    previous = null;
+                }
+            }
 
-    const followup = await FormFromPayload({
-        type: CallbackType.CHANNEL_MESSAGE_WITH_SOURCE,
-        data: {
-            attachments: [
-                {
-                    blob: new Blob([formattedStr], {
-                        type: "text/plain",
-                    }),
-                    fileName: "history.txt",
+            const formattedStr = `#### BEGIN SETTINGS ####\nModel: ${
+                chatData.model
+            }\nFine-tune name: ${chatData.finetune || "none"}\nTemperature: ${
+                chatData.temp || 1
+            }\nSystem prompt: ${
+                chatData.system || "none"
+            }\n\n#### BEGIN HISTORY ####\n${contextOutput}`;
+
+            const followup = await FormFromPayload({
+                type: CallbackType.CHANNEL_MESSAGE_WITH_SOURCE,
+                data: {
+                    attachments: [
+                        {
+                            blob: new Blob([formattedStr], {
+                                type: "text/plain",
+                            }),
+                            fileName: "history.txt",
+                        },
+                    ],
                 },
-            ],
-        },
-    });
-    await DiscordRequest(
-        env,
-        `/webhooks/${application_id(env)}/${interaction.token}`,
-        "POST",
-        followup
+            });
+
+            await DiscordRequest(
+                env,
+                `/webhooks/${application_id(env)}/${interaction.token}`,
+                "POST",
+                followup
+            );
+        })()
     );
 
     return {
-        type: CallbackType.IGNORE,
-        data: {},
+        type: CallbackType.DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE,
+        data: {
+            flags: 64,
+        },
     };
 }
 
