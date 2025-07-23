@@ -15,6 +15,7 @@ import * as whois_next from "./components/whois_next";
 import * as ai_chat_reply from "./components/ai_reply";
 import * as ai_chat_history from "./components/ai_history"
 import * as ai_chat_reply_modal from "./modals/ai_reply";
+import * as ai_summary_message from "./commands/summary_message"
 
 export const commands: { [id: string]: BotCommand } = {
     refresh,
@@ -27,6 +28,7 @@ export const commands: { [id: string]: BotCommand } = {
     foxtrotai,
     whitelist,
     ai,
+    ai_summary_message,
 };
 
 export const components: { [id: string]: BotComponent } = {
