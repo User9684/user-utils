@@ -19,6 +19,8 @@ function commandFromInteraction(interaction: Interaction) {
     let cmd =
         (interaction.type === InteractionType.APPLICATION_COMMAND &&
             commands[interaction.data.name]) ||
+        (interaction.type === InteractionType.MESSAGE_COMMAND &&
+            commands[interaction.data.name]) ||
         (interaction.type === InteractionType.MESSAGE_COMPONENT &&
             components[interaction.data.custom_id]) ||
         (interaction.type === InteractionType.MODAL_SUBMIT &&
@@ -64,13 +66,14 @@ async function handleInteraction(
     env: Env,
     ctx: Ctx
 ): Promise<InteractionResponse> {
+    console.log(interaction);
     const cmd = commandFromInteraction(interaction);
 
     switch (interaction.type) {
         case InteractionType.MODAL_SUBMIT:
         case InteractionType.MESSAGE_COMPONENT:
-        case InteractionType.APPLICATION_COMMAND ||
-            InteractionType.MESSAGE_COMPONENT:
+        case InteractionType.MESSAGE_COMMAND:
+        case InteractionType.APPLICATION_COMMAND:
             try {
                 const commandResponse = await cmd.Execute(
                     env,
