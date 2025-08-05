@@ -10,6 +10,7 @@ import * as cobalt_message from "./commands/cobalt_message";
 import * as foxtrotai from "./commands/foxtrot_ai";
 import * as whitelist from "./commands/whitelist";
 import * as ai from "./commands/ai";
+import * as color from "./commands/color"
 import * as summary from "./commands/summary_message";
 import * as whois_select_menu from "./components/whois_select_menu";
 import * as whois_next from "./components/whois_next";
@@ -29,6 +30,7 @@ export const commands: { [id: string]: BotCommand } = {
     whitelist,
     ai,
     summary,
+    color,
 };
 
 export const components: { [id: string]: BotComponent } = {
