@@ -59,8 +59,6 @@ export async function pagesFromEntities(
     for (const i in entities) {
         const entity = entities[i];
 
-        console.log(entity);
-
         const page: EmbedField[] = [];
         if (entity.roles) {
             page.push({

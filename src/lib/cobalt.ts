@@ -37,7 +37,7 @@ const unmarshalResponse = async (
     try {
         return await response.json();
     } catch (err) {
-        console.log(err);
+        console.log(`Failed to parse json! ${err}`);
         return false;
     }
 };
@@ -69,8 +69,6 @@ export async function CobaltHeaders(env: Env, contentType: string) {
     if (env.COBALT_ACCESS_HEADER && env.COBALT_ACCESS_HEADER.length > 0) {
         requestHeaders["authorization"] = env.COBALT_ACCESS_HEADER;
     }
-
-    console.log(requestHeaders);
 
     return requestHeaders;
 }

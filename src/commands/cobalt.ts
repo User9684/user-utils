@@ -46,9 +46,6 @@ function isCobaltURL(env: Env, url: string) {
     const baseHost = new URL(env.COBALT_URL).hostname;
     const givenHost = new URL(url).hostname;
 
-    console.log(baseHost);
-    console.log(givenHost);
-    console.log(baseHost == givenHost);
     return baseHost == givenHost;
 }
 
@@ -266,7 +263,7 @@ async function Execute(
 
             if (typeof cobaltResponse == "string") {
                 console.log("Update message with error");
-                const res = await DiscordRequest(
+                await DiscordRequest(
                     env,
                     `/webhooks/${application_id(env)}/${
                         interaction.token
@@ -276,8 +273,6 @@ async function Execute(
                         content: `Could not fetch content from cobalt!\n\`${cobaltResponse}\``,
                     }
                 );
-
-                console.log(await res.text());
 
                 return;
             }
