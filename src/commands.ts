@@ -7,10 +7,10 @@ import * as whois from "./commands/whois";
 import * as report from "./commands/report";
 import * as cobalt from "./commands/cobalt";
 import * as cobalt_message from "./commands/cobalt_message";
-import * as foxtrotai from "./commands/foxtrot_ai";
 import * as whitelist from "./commands/whitelist";
 import * as ai from "./commands/ai";
 import * as color from "./commands/color"
+import * as roblox from "./commands/roblox"
 import * as summary from "./commands/summary_message";
 import * as whois_select_menu from "./components/whois_select_menu";
 import * as whois_next from "./components/whois_next";
@@ -26,11 +26,11 @@ export const commands: { [id: string]: BotCommand } = {
     report,
     cobalt,
     cobalt_message,
-    foxtrotai,
     whitelist,
     ai,
     summary,
     color,
+    roblox,
 };
 
 export const components: { [id: string]: BotComponent } = {

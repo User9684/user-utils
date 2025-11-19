@@ -4,7 +4,6 @@ export type Env = {
     BOT_OWNER: string;
     FISHFISH_AUTH: string;
     PHISHOBSERVER_AUTH: string;
-    FOXTROTAI_AUTH: string;
     COBALT_URL: string; // base cobalt URI
     COBALT_ACCESS_HEADER: string;
     AI: any;
