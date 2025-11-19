@@ -45,26 +45,25 @@ export type ChatData = {
 };
 
 const chatModels = [
-    "@cf/qwen/qwen1.5-7b-chat-awq",
-    "@hf/nousresearch/hermes-2-pro-mistral-7b",
-    "@cf/deepseek-ai/deepseek-math-7b-instruct",
-    "@hf/google/gemma-7b-it",
-    "@hf/mistral/mistral-7b-instruct-v0.2",
-    "@hf/thebloke/llama-2-13b-chat-awq",
-    "@hf/nexusflow/starling-lm-7b-beta",
-    "@cf/fblgit/una-cybertron-7b-v2-bf16",
-    "@cf/deepseek-ai/deepseek-math-7b-instruct",
+   "@cf/google/gemma-2b-it-lora",
+   "@cf/mistral/mistral-7b-instruct-v0.2-lora",
+   "@hf/mistral/mistral-7b-instruct-v0.2",
+   "@cf/meta-llama/llama-2-7b-chat-hf-lora",
+   "@hf/nousresearch/hermes-2-pro-mistral-7b",
+   "@cf/google/gemma-7b-it-lora",
+   "@cf/microsoft/phi-2",
+   "@hf/google/gemma-7b-it",
+
 ];
 const ittModels = [
     "@cf/unum/uform-gen2-qwen-500m",
     "@cf/llava-hf/llava-1.5-7b-hf",
 ];
 const ttiModels = [
-    "@cf/stabilityai/stable-diffusion-xl-base-1.0",
-    "@cf/bytedance/stable-diffusion-xl-lightning",
-    "@cf/runwayml/stable-diffusion-v1-5-img2img",
     "@cf/runwayml/stable-diffusion-v1-5-inpainting",
-    "@cf/lykon/dreamshaper-8-lcm",
+    "@cf/bytedance/stable-diffusion-xl-lightning",
+    "@cf/stabilityai/stable-diffusion-xl-base-1.0",
+    "@cf/runwayml/stable-diffusion-v1-5-img2img",
 ];
 const summaryModels = ["@cf/facebook/bart-large-cnn"];
 
